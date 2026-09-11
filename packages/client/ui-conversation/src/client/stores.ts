@@ -1,7 +1,7 @@
 /** Per-session Conversation store shared by the shell body and header. */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ConversationStoreState } from './contract/views.ts'
+import type { ConversationStoreState, ConversationViewRequest } from './contract/views.ts'
 
 const CONVERSATION_STORE_KEY = 'dsh.conversation'
 
@@ -9,7 +9,7 @@ const CONVERSATION_STORE_KEY = 'dsh.conversation'
 type ConversationActions = {
   setDraft: (draft: ConversationStoreState, text: string) => void
   setView: (draft: ConversationStoreState, view: string) => void
-  openView: (draft: ConversationStoreState, view: string, focus: string) => void
+  requestView: (draft: ConversationStoreState, request: ConversationViewRequest) => void
   completeViewRequest: (draft: ConversationStoreState) => void
 }
 
@@ -24,9 +24,14 @@ export function createConversationStore(): EngineStoreHandle<ConversationStoreSt
     actions: {
       setDraft: (d, text: string) => { d.draft = text },
       setView: (d, view: string) => { d.view = view },
-      openView: (d, view: string, focus: string) => {
-        d.view = view
-        d.viewRequest = { view, focus }
+      /**
+       * Select the addressed View and publish one request to it.
+       * @param d - draft state.
+       * @param request - the addressed request.
+       */
+      requestView: (d, request) => {
+        d.view = request.view
+        d.viewRequest = request
       },
       completeViewRequest: (d) => { d.viewRequest = null },
     },

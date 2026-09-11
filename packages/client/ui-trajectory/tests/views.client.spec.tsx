@@ -235,7 +235,7 @@ function standaloneProps(
     inputActions,
     useProjection,
     viewRequest: null,
-    openView: () => {},
+    requestView: () => {},
     completeViewRequest: () => {},
     // Image seats the outlet would bake: standalone renders omit the gallery.
     renderSlot: () => null,
@@ -308,11 +308,11 @@ function tabsOf(slots: SlotRegistry): ViewTab[] {
     .map(e => ({ id: e.options.id!, label: resolveSlotLabel(e.options.label) ?? e.options.id! }))
 }
 
-type ConvViewOwner = Pick<ConvViewProps, 'viewRequest' | 'openView' | 'completeViewRequest'>
+type ConvViewOwner = Pick<ConvViewProps, 'viewRequest' | 'requestView' | 'completeViewRequest'>
 
 function isConvViewOwner(owner: object): owner is ConvViewOwner {
   return 'viewRequest' in owner
-    && 'openView' in owner && typeof owner.openView === 'function'
+    && 'requestView' in owner && typeof owner.requestView === 'function'
     && 'completeViewRequest' in owner && typeof owner.completeViewRequest === 'function'
 }
 
@@ -410,7 +410,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
         actions={conversation.actions}
         renderSlot={renderSlot}
         bindDraftMirror={() => () => {}}
-        openView={conversation.actions.openView}
+        requestView={conversation.actions.requestView}
       />
     </>,
   )
@@ -1440,7 +1440,7 @@ describe('TrajectoryView state', () => {
         {...standaloneProps([])}
         {...standaloneHistory(historySnapshot(nodes))}
         {...standaloneDuration()}
-        viewRequest={{ view: 'trajectory', focus }}
+        viewRequest={{ kind: 'focus', view: 'trajectory', focus }}
         completeViewRequest={completeViewRequest}
       />,
     )

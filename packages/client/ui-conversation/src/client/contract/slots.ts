@@ -21,7 +21,7 @@ import type {
 import type { createConversationStore } from '../stores.ts'
 import type { BusyEnterBehavior } from './composer-submission.ts'
 import type { ConversationSnapshot } from './snapshot.ts'
-import type { ViewTab } from './views.ts'
+import type { ConversationViewRequest, ViewTab } from './views.ts'
 
 /** Browser-owned draft attachment that has not crossed the durable Host boundary. */
 export type ComposerAttachment = ComposerImageAttachment | ComposerFileAttachment
@@ -247,9 +247,9 @@ export interface InputZone {
 /** Conversation View entries obtain their data from registered standard hooks. */
 export interface ConvViewOwnerProps {
   /** Focus request addressed to the selected View. */
-  viewRequest: import('./views.ts').ConversationViewRequest | null
-  /** Select a View and address one opaque focus identity to it. */
-  openView: (view: string, focus: string) => void
+  viewRequest: ConversationViewRequest | null
+  /** Select the addressed View and publish one request to it. */
+  requestView: (request: ConversationViewRequest) => void
   /** Acknowledge the current one-shot focus request. */
   completeViewRequest: () => void
 }
@@ -272,7 +272,7 @@ export interface ConversationSessionInjected {
   /** Bind input draft persistence to the Session-owned store instance. */
   bindDraftMirror: (write: (text: string) => void) => () => void
   /** Select and activate one View while addressing an opaque focus request to it. */
-  openView: (view: string, focus: string) => void
+  requestView: (request: ConversationViewRequest) => void
 }
 
 /** Business callbacks injected into the strict Session header. */

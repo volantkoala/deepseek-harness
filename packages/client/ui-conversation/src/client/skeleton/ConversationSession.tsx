@@ -167,7 +167,7 @@ export function ConversationSessionHeader({
  */
 export function ConversationSession({
   useSession, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
-  renderSlot, bindDraftMirror, openView,
+  renderSlot, bindDraftMirror, requestView,
 }: ConversationSessionProps) {
   const tabs = useConversationViews(value => value)
   const selectedId = useStore(s => s.view)
@@ -191,7 +191,7 @@ export function ConversationSession({
     <div className={css.viewArea}>
       {active !== undefined && renderSlot('conversation.view', {
         viewRequest,
-        openView,
+        requestView,
         completeViewRequest: actions.completeViewRequest,
       }, { only: active.id })}
     </div>

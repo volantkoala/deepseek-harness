@@ -6,13 +6,29 @@
  */
 export interface ViewTab { id: string; label: string }
 
-/** One-shot focus request addressed to a Conversation View. */
-export interface ConversationViewRequest {
-  /** Target `conversation.view` entry id. */
-  readonly view: string
-  /** Target-owned opaque focus identity. */
-  readonly focus: string
-}
+/**
+ * One-shot focus request addressed to a Conversation View.
+ *
+ * The `focus` arm carries a View's own opaque identity (Trajectory's inspector
+ * identity, for example); the `turn` arm addresses a Turn of the Session by
+ * number, which is the vocabulary the turn outline and the transcript rail
+ * already share.
+ */
+export type ConversationViewRequest =
+  | {
+    readonly kind: 'focus'
+    /** Target `conversation.view` entry id. */
+    readonly view: string
+    /** Target-owned opaque focus identity. */
+    readonly focus: string
+  }
+  | {
+    readonly kind: 'turn'
+    /** Target `conversation.view` entry id. */
+    readonly view: string
+    /** 1-based Turn number to reveal. */
+    readonly turn: number
+  }
 
 /** Per-session state owned by the target-neutral Conversation shell. */
 export interface ConversationStoreState {

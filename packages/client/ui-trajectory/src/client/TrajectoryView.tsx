@@ -196,7 +196,9 @@ export function TrajectoryView({
   const runningCalls = inspection.runningCalls
   const requests = inspection.requests
   const callSchemas = inspection.callSchemas
-  const inspectCallId = viewRequest?.view === 'trajectory' ? viewRequest.focus : null
+  const inspectCallId = viewRequest?.kind === 'focus' && viewRequest.view === 'trajectory'
+    ? viewRequest.focus
+    : null
   const inspectNodeIndex = useMemo(() => inspectCallId === null
     ? -1
     : completeInspection.eventNodes.findIndex(node => node.kind === 'assistant'

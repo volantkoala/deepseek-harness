@@ -162,7 +162,7 @@ describe('Conversation inject API', () => {
     const b = await bench()
     const { injected } = b.conversationApi(ROOT)
     expect(b.sessionFake.loadOlder).not.toHaveBeenCalled()
-    expect(Object.keys(injected)).toEqual(['hooks', 'bindDraftMirror', 'openView'])
+    expect(Object.keys(injected)).toEqual(['hooks', 'bindDraftMirror', 'requestView'])
     expect(b.viewSource(ROOT).getSnapshot()).toEqual([])
     await b.runtime.dispose()
   })
@@ -183,11 +183,11 @@ describe('Conversation inject API', () => {
     activate.mockClear()
 
     const body = b.conversationApi(ROOT)
-    body.injected.openView('trajectory', 'call-1')
+    body.injected.requestView({ kind: 'focus', view: 'trajectory', focus: 'call-1' })
     expect(activate).toHaveBeenLastCalledWith('trajectory')
     expect(body.instance.store.getSnapshot()).toMatchObject({
       view: 'trajectory',
-      viewRequest: { view: 'trajectory', focus: 'call-1' },
+      viewRequest: { kind: 'focus', view: 'trajectory', focus: 'call-1' },
     })
 
     const header = b.headerApi(ROOT)

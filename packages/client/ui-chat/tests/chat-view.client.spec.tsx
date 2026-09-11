@@ -15,7 +15,7 @@ import type {
   SessionListState, SessionSnapshot,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {
-  ConversationLocationDataStore, ConversationTurnDataMap,
+  ConversationLocationDataStore, ConversationTurnDataMap, ConversationViewRequest,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -256,7 +256,7 @@ function makeHarness(
   const loadThrough = vi.fn<(seq: number) => Promise<void>>().mockResolvedValue(undefined)
   // Mutable outline holder: tests swap the value and drive a re-render via set().
   let outlineValue: unknown
-  const openView = vi.fn<(view: string, focus: string) => void>()
+  const requestView = vi.fn<(request: ConversationViewRequest) => void>()
   // In-memory scroll memory matching the apply.ts per-session map contract.
   let savedScroll: ReturnType<ChatViewSlotProps['chatScroll']['read']> = null
   const chatScroll: ChatViewSlotProps['chatScroll'] = {
@@ -395,7 +395,7 @@ function makeHarness(
     renderSlot,
     SessionProvider: SessionProviderStub,
     viewRequest: null,
-    openView,
+    requestView,
     completeViewRequest: () => {},
     openFile,
     openSkill,
@@ -428,7 +428,7 @@ function makeHarness(
   }
   return {
     set, setSession: session.set, setChat: chatSource.set, ChatView, props,
-    openFile, openSkill, loadOlder, loadThrough, openView,
+    openFile, openSkill, loadOlder, loadThrough, requestView,
     setOutline: (value: unknown) => { outlineValue = value },
     chatScroll, forkAt, toolOwners,
     setTranscriptView: (mode: TranscriptViewMode) => { transcriptView.set(mode) },
@@ -1315,7 +1315,7 @@ describe('ChatView', () => {
     })
     render(<h.ChatView {...h.props} />)
     h.toolOwners[0]?.inspectCall('a')
-    expect(h.openView).toHaveBeenCalledWith('trajectory', 'a')
+    expect(h.requestView).toHaveBeenCalledWith({ kind: 'focus', view: 'trajectory', focus: 'a' })
   })
 
   it('shows assistant IconActions only on the last content message of each turn', () => {
@@ -2225,7 +2225,7 @@ describe('ChatView', () => {
     owner.openFile('src/a.ts')
     expect(h.openFile).toHaveBeenCalledWith('src/a.ts')
     owner.inspectCall('a')
-    expect(h.openView).toHaveBeenCalledWith('trajectory', 'a')
+    expect(h.requestView).toHaveBeenCalledWith({ kind: 'focus', view: 'trajectory', focus: 'a' })
   })
 
   it('shows a Host open refusal with the reason and retries the same path', async () => {

@@ -22,13 +22,28 @@ describe('createConversationStore', () => {
       viewRequest: null,
     })
 
-    store.actions.openView('trajectory', 'call-1')
+    store.actions.requestView({ kind: 'focus', view: 'trajectory', focus: 'call-1' })
     expect(store.store.getSnapshot()).toMatchObject({
       view: 'trajectory',
-      viewRequest: { view: 'trajectory', focus: 'call-1' },
+      viewRequest: { kind: 'focus', view: 'trajectory', focus: 'call-1' },
     })
     store.actions.completeViewRequest()
     expect(store.store.getSnapshot().viewRequest).toBeNull()
+  })
+
+  it('records a turn-addressed request and clears it on completion', () => {
+    const store = createConversationStore().create()
+    store.actions.requestView({ kind: 'turn', view: 'chat', turn: 4 })
+    expect(store.getSnapshot().view).toBe('chat')
+    expect(store.getSnapshot().viewRequest).toEqual({ kind: 'turn', view: 'chat', turn: 4 })
+    store.actions.completeViewRequest()
+    expect(store.getSnapshot().viewRequest).toBeNull()
+  })
+
+  it('records an opaque focus request unchanged', () => {
+    const store = createConversationStore().create()
+    store.actions.requestView({ kind: 'focus', view: 'trajectory', focus: 'call-9' })
+    expect(store.getSnapshot().viewRequest).toEqual({ kind: 'focus', view: 'trajectory', focus: 'call-9' })
   })
 
   it('persists per Session scope and clears the persisted value', () => {
