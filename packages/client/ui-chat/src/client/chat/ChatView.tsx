@@ -3,7 +3,7 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import type {
-  ConversationTimelineSnapshot, RenderMessageImages,
+  ConversationTimelineSnapshot, ConversationViewRequest, RenderMessageImages,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { Button, IconChevronDownOutline14, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -216,7 +216,8 @@ const ChatNodeList = memo(function ChatNodeList({ order, ...seatProps }: ChatNod
  */
 export function ChatView({
   useSession, useChat, useChatNode, useChatNodeProcess, useSessions, useStore, actions, renderSlot,
-  sessionId, openFile, openSkill, loadOlder, loadThrough, loadImage, requestView, chatScroll, forkAt, fileMentions,
+  sessionId, openFile, openSkill, loadOlder, loadThrough, loadImage, requestView, viewRequest, completeViewRequest,
+  chatScroll, forkAt, fileMentions,
   useTranscriptView, useProjection, t,
 }: ChatViewSlotProps) {
   const order = useChat(s => s.order)
@@ -326,6 +327,8 @@ export function ChatView({
   const [jumpSettleTick, setJumpSettleTick] = useState(0)
   /** Window head at the last settle-time repage; an unmoved head falls back instead of repaging forever. */
   const jumpRepageHeadRef = useRef<number | null>(null)
+  /** The request this view already honoured: the store keeps one object per request. */
+  const consumedRequestRef = useRef<ConversationViewRequest | null>(null)
   const firstSeqRef = useRef<number | null>(null)
   const openedRef = useRef(false)
   const lastKeyRef = useRef<string | null>(null)
@@ -756,6 +759,26 @@ export function ChatView({
       ? null
       : { key: landed.dataset.chatAnchorKey, top: flowTop(landed, el) }
   }, [loadingOlder, loadThrough])
+
+  // Identity is the "new request" signal, and clearing resets it: the store
+  // retains the caller's object, so the same request sent again after its
+  // completion must be honoured rather than read as the one already consumed.
+  // A re-render (including one from railItems changing under an in-flight
+  // jump) must not replay the request already honoured.
+  useEffect(() => {
+    if (viewRequest === null) {
+      consumedRequestRef.current = null
+      return
+    }
+    if (consumedRequestRef.current === viewRequest) return
+    consumedRequestRef.current = viewRequest
+    if (viewRequest.kind !== 'turn' || viewRequest.view !== 'chat') return
+    const item = railItems.find(candidate => candidate.turn === viewRequest.turn)
+    // An unresolvable Turn is a node whose Session moved on; the gesture is on
+    // stale data, so the request is acknowledged without a visible change.
+    if (item !== undefined) navigateToTurn(item)
+    completeViewRequest()
+  }, [viewRequest, railItems, navigateToTurn, completeViewRequest])
 
   return (
     <div className={css.root}>

@@ -257,6 +257,7 @@ function makeHarness(
   // Mutable outline holder: tests swap the value and drive a re-render via set().
   let outlineValue: unknown
   const requestView = vi.fn<(request: ConversationViewRequest) => void>()
+  const completeViewRequest = vi.fn()
   // In-memory scroll memory matching the apply.ts per-session map contract.
   let savedScroll: ReturnType<ChatViewSlotProps['chatScroll']['read']> = null
   const chatScroll: ChatViewSlotProps['chatScroll'] = {
@@ -396,7 +397,7 @@ function makeHarness(
     SessionProvider: SessionProviderStub,
     viewRequest: null,
     requestView,
-    completeViewRequest: () => {},
+    completeViewRequest,
     openFile,
     openSkill,
     loadOlder,
@@ -407,6 +408,36 @@ function makeHarness(
     // Absent-service default; mention tests override with a real resolver.
     fileMentions: () => undefined,
     t,
+  }
+  // The shell owns the request prop and the `turnOutline` projection: a case
+  // changes either here and commits it, which is what mount() keeps the root for.
+  let mounted: ReturnType<typeof render> | null = null
+  /**
+   * Mount the view under a root this harness keeps, so a case can deliver a
+   * later request prop or projection value the way the shell does — a fresh
+   * commit over the current values.
+   * @returns the mounted view.
+   */
+  const mount = (): ReturnType<typeof render> => {
+    mounted = render(<ChatView {...props} />)
+    return mounted
+  }
+  /** Commit the current props and projection value to the mounted root. */
+  const commit = (): void => {
+    mounted?.rerender(<ChatView {...props} />)
+  }
+  const setViewRequest = (request: ConversationViewRequest | null): void => {
+    props.viewRequest = request
+    commit()
+  }
+  /**
+   * Turn of the rail's active mark, which is what a landing moves. The mark is
+   * an empty button, so the number is read back out of the accessible name the
+   * view writes from its own locale.
+   */
+  const activeTurnText = (): string | undefined => {
+    const active = mounted?.container.querySelector('[aria-current="true"]')
+    return /(\d+)/.exec(active?.getAttribute('aria-label') ?? '')?.[1]
   }
   const set = (next: HarnessUpdate): void => {
     const {
@@ -428,13 +459,25 @@ function makeHarness(
   }
   return {
     set, setSession: session.set, setChat: chatSource.set, ChatView, props,
-    openFile, openSkill, loadOlder, loadThrough, requestView,
+    openFile, openSkill, loadOlder, loadThrough, requestView, completeViewRequest,
+    mount, commit, setViewRequest, activeTurnText,
     setOutline: (value: unknown) => { outlineValue = value },
     chatScroll, forkAt, toolOwners,
     setTranscriptView: (mode: TranscriptViewMode) => { transcriptView.set(mode) },
     setNodeRenderer: (renderer: React.ComponentProps<typeof ChatNodeSeat>['renderSlot']) => {
       nodeSlotOverride = renderer
     },
+  }
+}
+
+/** One closed prompt/answer Turn each: a loaded window a landing can reach. */
+function loadedTurns(turns: readonly number[]): HarnessUpdate {
+  return {
+    nodes: turns.flatMap(turn => [
+      userInTurn(turn * 3 - 2, `prompt ${String(turn)}`, turn),
+      assistant(turn * 3 - 1, `answer ${String(turn)}`, turn),
+    ]),
+    turnEnds: new Map(turns.map(turn => [turn, turn * 3])),
   }
 }
 
@@ -495,6 +538,16 @@ function installScrollMetrics(element: HTMLElement, initialHeight: number, clien
       scrollTop = Math.max(0, Math.min(top, scrollHeight - clientHeight))
     },
   }
+}
+
+/**
+ * Hold animation frames: the active-turn resync reads jsdom's zero geometry as
+ * "at bottom" and hands the mark to the last Turn, so a case asserting which
+ * Turn a landing selected must observe the landing alone.
+ */
+function holdAnimationFrames(): void {
+  vi.stubGlobal('requestAnimationFrame', () => 0)
+  vi.stubGlobal('cancelAnimationFrame', () => {})
 }
 
 describe('Chat node rendering', () => {
@@ -2907,5 +2960,87 @@ describe('ChatView', () => {
     const failedView = render(<failed.ChatView {...failed.props} />)
     expect(failedView.getByText('Compaction cancelled.')).toBeTruthy()
     expect(failedView.container.querySelector('[data-state="error"]')).not.toBeNull()
+  })
+})
+
+describe('ChatView turn requests', () => {
+  beforeEach(holdAnimationFrames)
+
+  it('lands a turn-addressed request on a loaded turn and acknowledges it', async () => {
+    const h = makeHarness(loadedTurns([1, 2, 3]))
+    h.mount()
+    h.setViewRequest({ kind: 'turn', view: 'chat', turn: 2 })
+    await act(async () => {})
+    expect(h.activeTurnText()).toBe('2')
+    expect(h.completeViewRequest).toHaveBeenCalledOnce()
+  })
+
+  it('pages history for a turn outside the loaded window, then acknowledges', async () => {
+    const h = makeHarness(loadedTurns([8, 9]), { hasMore: true })
+    h.setOutline([{ turn: 3, seq: 30, prompt: 'third prompt', response: 'third response' }])
+    h.mount()
+    h.setViewRequest({ kind: 'turn', view: 'chat', turn: 3 })
+    await act(async () => {})
+    expect(h.loadThrough).toHaveBeenCalledWith(30)
+    expect(h.completeViewRequest).toHaveBeenCalledOnce()
+  })
+
+  it('acknowledges a turn the session does not have, changing nothing', async () => {
+    const h = makeHarness(loadedTurns([1, 2]))
+    h.mount()
+    h.setViewRequest({ kind: 'turn', view: 'chat', turn: 99 })
+    await act(async () => {})
+    expect(h.loadThrough).not.toHaveBeenCalled()
+    expect(h.activeTurnText()).toBe('2')
+    expect(h.completeViewRequest).toHaveBeenCalledOnce()
+  })
+
+  it('leaves a request addressed to another view for that view to consume', async () => {
+    const h = makeHarness(loadedTurns([1, 2]))
+    h.mount()
+    h.setViewRequest({ kind: 'focus', view: 'trajectory', focus: 'call-1' })
+    await act(async () => {})
+    h.setViewRequest({ kind: 'turn', view: 'trajectory', turn: 1 })
+    await act(async () => {})
+    expect(h.completeViewRequest).not.toHaveBeenCalled()
+  })
+
+  it('does not replay an honoured request when the rail changes under it', async () => {
+    const h = makeHarness(loadedTurns([1, 2, 3]))
+    h.mount()
+    h.setViewRequest({ kind: 'turn', view: 'chat', turn: 2 })
+    await act(async () => {})
+    expect(h.completeViewRequest).toHaveBeenCalledOnce()
+
+    // The projection arrives while the honoured request is still stored: the
+    // rebuilt rail must replay neither the landing nor the acknowledgement.
+    h.setOutline([{ turn: 3, seq: 30, prompt: 'third prompt', response: 'third response' }])
+    h.commit()
+    await act(async () => {})
+    expect(h.activeTurnText()).toBe('2')
+    expect(h.completeViewRequest).toHaveBeenCalledOnce()
+  })
+
+  it('honours the same request object again after the store clears it', async () => {
+    const h = makeHarness(loadedTurns([1, 2, 3]))
+    const view = h.mount()
+    const toSecondTurn: ConversationViewRequest = { kind: 'turn', view: 'chat', turn: 2 }
+    h.setViewRequest(toSecondTurn)
+    await act(async () => {})
+    expect(h.activeTurnText()).toBe('2')
+    expect(h.completeViewRequest).toHaveBeenCalledOnce()
+
+    // The reader moves on by the rail while the honoured request stays stored.
+    fireEvent.click(view.getByRole('button', { name: '跳转到第 3 轮' }))
+    expect(h.activeTurnText()).toBe('3')
+
+    // The store retains the caller's object, so the same request sent again
+    // after its completion is a new gesture rather than the one already honoured.
+    h.setViewRequest(null)
+    await act(async () => {})
+    h.setViewRequest(toSecondTurn)
+    await act(async () => {})
+    expect(h.activeTurnText()).toBe('2')
+    expect(h.completeViewRequest).toHaveBeenCalledTimes(2)
   })
 })
