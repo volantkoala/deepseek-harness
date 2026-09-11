@@ -1,0 +1,114 @@
+# Agent Note: DAG-learn — a turn map in the right Sidebar
+
+Status: proposed
+
+English | [中文](2026-09-11-dag-learn-turn-map-sidebar.zh.md)
+
+## Problem
+
+A long Session is a chain the reader cannot see. The product has one turn navigator today, and it lives inside the Chat transcript: `TurnNavigator` draws a thin mark strip beside the messages, and its marks scroll the transcript to a turn or page history when the target is not loaded. That strip is a few pixels wide, carries no text, and is reachable only from the surface it scrolls. A reader working in any other surface — the right Sidebar's file tree or document preview, the Trajectory ledger, a wide-screen pane arrangement — has no map of where the Session has been and no way to move the transcript.
+
+Two facts make a Sidebar map cheap now, and both are load-bearing for this proposal:
+
+- The host already projects `turnOutline` over the whole log: every started turn, in ascending order, with a bounded prompt preview, a bounded settled-response preview, and the turn's `turn/start` seq. Any session-scoped Slot occupant reads it through `useProjection`, with no event projection of its own.
+- The Chat view already implements turn navigation for a loaded target (scroll and land) and for an unloaded one (page history through the outline seq, then land).
+
+What is missing is not a turn model or a landing routine. It is a supported way for a plugin outside the Conversation shell to ask the Conversation to move, and for a plugin outside the Chat view to learn where the transcript currently is. Both facts today are private to the packages that own them: the request state lives in a Slot store the renderer resolves per registration and scope with no public accessor, and the Chat view's active-turn value is component state.
+
+## Proposal
+
+Add DAG-learn, a read-only turn map, as a right-Sidebar tab type in a new client package `@deepseek-ai/dsh-client-ui-sidebar-dag`. Every started turn is a node in a vertical chain drawn from the host's own turn outline; selecting a node moves the conversation to that turn. The map persists nothing, edits nothing, and owns no turn data: it is a projection consumer plus two thin cross-package seams.
+
+Three seams carry it, each owned by the package that already owns the corresponding state.
+
+1. **Navigation — `ui-conversation`.** `IConversation`, the scope-addressed outward face other plugins may reach, gains `openView(view, focus)`. For a caller inside the Conversation shell this is exactly what the store's existing `openView` action does today: activate the addressed view's target source, record the view preference, and publish the one-shot `ConversationViewRequest` (`{ view, focus }`) that the addressed view consumes and acknowledges. `Trajectory`'s existing focus path is unchanged.
+2. **Focus encoding — `ui-chat`.** The `focus` value stays a target-owned opaque string, as the contract already defines it. `ui-chat` exports `chatTurnFocus(turn)` so no producer spells the encoding itself.
+3. **Current position — `ui-chat`.** `ui-chat` declares a new `SessionStandardProps` member publishing the Chat view's own `{ activeTurn, busyTurn }` per Session, the same way it already publishes the Chat target snapshot to every session-scoped occupant. Absent hook or unmounted Chat view means no current mark.
+
+### The step that does not exist yet: an outside producer
+
+The view-request machinery is complete inside the Conversation shell and unreachable outside it. The request lives in the per-session Slot store that holds `view` and `viewRequest`; the renderer resolves that store per registration and scope, and no service method or public accessor reaches it.
+
+The shell is therefore the applier, not a second owner. The mounted Conversation shell registers itself as the Session's request applier on the conversation service; `openView` hands the request to that applier, which writes it through the store actions exactly as an in-shell caller does. The store stays the single live owner of the request; the service holds no request state of its own. A Session with no mounted shell has no applier, and the call fails loud rather than dropping the request: the invariant is that a right-Sidebar tab shares its Session with the mounted conversation region, so a missing applier is an anomaly worth a message, not silence.
+
+The producer reaches the verb through the Session scope, the same route `ui-conversation`'s own scope-addressed callers use: `sessions.scope(sessionId)` and the `conversation` service resolved from it.
+
+### The node source
+
+`useProjection('turnOutline')` yields `TurnOutlineEntry[]` — `{ turn, seq, prompt, response }` — strictly ascending by turn. Previews exclude injected context and tool results; a response preview appears only once its turn settles.
+
+Consequences that shape the map:
+
+- A turn that is still generating is already a node with its prompt preview and an empty response preview; the preview fills in when the turn settles, without the node appearing, disappearing, or reordering.
+- No second source is needed. The map does not read the Chat target snapshot, so it stays independent of the Chat view and keeps rendering in deployments and view configurations where Chat is not mounted.
+- The projection's previews are already bounded at the wire, so the map re-bounds nothing; overflow is a visual clip, not a new bound.
+
+Projection values cross the wire, so a consumer narrows them structurally. That narrowing gets one home rather than one copy per consumer: `@deepseek-ai/dsh-session-turn-outline/client` exports `turnOutlineEntries(value)`, and `ui-chat`'s `turn-rail-items.ts` drops its private copies in favour of it. The package that declares the wire projection owns the conversion from wire value to typed entries.
+
+### Selecting a node
+
+The tab's session scope supplies the Session and the node supplies its `turn`:
+
+1. the map calls `conversation.openView('chat', chatTurnFocus(turn))`;
+2. the shell applies the request and the Chat view consumes it: a loaded turn resolves through the same path the rail's loaded mark uses, and a turn outside the loaded window arms the existing pending-jump state with the outline's `seq` and pages history through `loadThrough` before landing;
+3. the request is acknowledged.
+
+An unresolvable turn — a node whose turn no longer exists because history moved under the map, or a focus this view does not own — is acknowledged with no visible change. The gesture is a user action on stale data, not a configuration error, and it must not wedge the one-shot request.
+
+### The map's own behaviour
+
+The map follows the tail while the reader is at the tail and suspends following once the reader scrolls away, matching the Chat transcript and the Trajectory ledger. While following is suspended, a "back to current" control returns to the current node and resumes following; the control is drawn only when the current node is out of view.
+
+Rows are uniform and dense: node mark, turn number, prompt preview. Only the current node expands its response preview, so the chain stays scannable and the reader's eye lands on one row at a time. A node in flight during a jump carries a landing state; the current node carries `aria-current`.
+
+The map is a keyboard surface: a `nav` landmark containing a list of real buttons, roving tabindex with arrow-key traversal and Home/End, a visible focus ring, and reduced-motion behaviour that disables smooth scrolling and the landing pulse. In the panel's full width the chain keeps its spine anchored and bounds its content width instead of stretching rows into bands.
+
+An empty Session shows one line; a deployment without the projection shows a different line, so a missing projection is never presented as an empty Session.
+
+## What this does not do
+
+- No branching: forks, subagent children, and retries are not nodes. A linear chain is a degenerate directed acyclic graph, and that is the whole graph this version draws.
+- No node editing, labelling, annotation, persistence, search, filtering, minimap, or zoom.
+- No left-Sidebar panel and no entry point on non-browser UI surfaces.
+- No virtualised list. Long-Session cost is absorbed by `content-visibility` on rows, and the measurement that would justify virtualisation is recorded with the package's known limitations.
+- No change to the Trajectory focus path, the transcript rail, or any existing turn-navigation behaviour.
+
+## Alternatives considered
+
+**Why not have `ui-chat` own a location service (`chatLocation.reveal` / `activeTurn`) that the map depends on?** It centralises the change in one package, but the Chat view is not always mounted — a reader can be looking at the Trajectory ledger — so `reveal` would have nowhere to land, and returning the conversation to Chat needs the view selection that lives in the Conversation shell. The design would end up reaching into `ui-conversation` anyway, with an extra dependency from a Sidebar plugin to the Chat plugin on top.
+
+**Why not register the map's tab inside `ui-chat` itself and share the jump closure directly?** That is the smallest diff: no new seam at all. It also puts a Sidebar surface inside the Chat target package, against the package-per-role layout, and it makes removing or changing the experiment a change to a core package.
+
+**Why not write the request straight into the Conversation store?** The store instance is resolved by the Slot renderer for a specific registration and scope and has no public accessor by design; exposing one would hand every plugin a mutable handle on shell state. The applier keeps the write set where it belongs.
+
+**Why not reuse the browser's own scroll into view from the Sidebar?** The transcript virtualises and pages; a DOM-level scroll cannot reach a turn that is not loaded, and it would silently show the wrong position when pages shift. The Chat view's landing routine exists precisely because this is not a scroll-position problem.
+
+**Why not derive the node list from the Chat snapshot instead of the projection?** The snapshot holds only the loaded window, so a long Session's early turns would be missing from the map until paged in — the opposite of a map. The projection exists to describe turns a client has not loaded.
+
+## Acceptance criteria
+
+- A right-Sidebar tab type renders every started turn of the Session as a chain node in ascending turn order, sourced from the `turnOutline` projection, with no event projection in the map package.
+- Selecting a node moves the conversation to that turn, with the Chat view as the addressed view: a loaded turn lands through the existing loaded-mark path, and an unloaded turn pages history through the outline seq and lands.
+- The view selection follows the request: selecting a node while another Conversation view is active returns the conversation to Chat at that turn.
+- The current node follows the transcript while the reader is at the tail; following suspends when the reader scrolls away; the "back to current" control appears only while the current node is out of view and resumes following.
+- A turn still generating shows as a node with an empty response preview and gains its response preview when the turn settles, without reordering or remounting the chain.
+- An unresolvable turn is acknowledged with no visible change and does not wedge later requests.
+- `openView` fails loud, with a distinguishing message, when the addressed view is not registered or the addressed Session has no mounted conversation shell.
+- Rows are reachable and operable by keyboard with a visible focus ring, and reduced-motion mode disables smooth scrolling and the landing pulse.
+- The map's registrations dispose with their plugin fiber (a disposed fiber removes the tab type and its seats).
+- Trajectory's existing focus-request path keeps its current behaviour.
+- The map reads as one system in both light and dark themes using `--dsw-alias-*` tokens, in the panel's narrow and full widths.
+
+## Risks
+
+- **The applier invariant is assumed, not yet proven.** The design depends on a Session's right-Sidebar tab coexisting only with that Session's mounted conversation region; if a floating panel can present another Session's tabs, a jump can fail loud where a reader expects it to work. Implementation verifies the invariant first and adds a test that asserts it.
+- **The change touches hot paths in two core packages.** The service verb and the request consumer sit on the transcript's scrolling and the conversation's view selection. Existing suites cover both, and the plan adds explicit regression coverage for the Trajectory path, but the review burden is in those two packages, not in the new one.
+- **Focus is an opaque string with one producer today.** A second producer can spell it wrong; the exported helper narrows that risk but does not remove it. The consumer's unresolvable-focus path is what keeps a mistake from wedging the request.
+- **No virtualisation until measured.** The row count is bounded by the Session's turn count, which is not bounded by the product. `content-visibility` mitigates rendering cost; the threshold that would force virtualisation is not known yet and is recorded as a known limitation rather than guessed at now.
+- **The map shows structure, not health.** Turn errors, retries, and compactions are not part of the projection, so a turn that failed reads like any other turn. Presenting failure state would need another source and is deliberately out of scope.
+
+## Open questions
+
+- Does the panel's full-screen presentation need a different row rhythm (wider content bound, two-line previews) than the docked panel, or is one rhythm correct at both widths?
+- Should the chain expose a "jump to this turn" action in the tab's menu seat (`sidebar.right.tab.menu.item`) as well as on the rows, for pointer-free access from the tab strip?
+- Once the outside-producer seam exists, should the transcript rail itself move onto it, so that both surfaces drive one entry point rather than the rail keeping its in-script anchor path?
