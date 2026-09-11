@@ -1,0 +1,7 @@
+- navigation "DAG-learn":
+  - text: 2 turns
+  - list:
+    - listitem:
+      - 'button "1 NavScenario: first run bash to print exactly NAVI… FIRST_DONE"'
+    - listitem:
+      - 'button "2 Reply in markdown with: a level-2 heading \"Naviga…"'

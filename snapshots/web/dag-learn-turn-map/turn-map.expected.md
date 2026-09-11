@@ -1,0 +1,7 @@
+- navigation "DAG-learn":
+  - text: 2 turns
+  - list:
+    - listitem:
+      - 'button "1 NavScenario: first run bash to print exactly NAVI…"'
+    - listitem:
+      - 'button "2 Reply in markdown with: a level-2 heading \"Naviga… ## Navigation Summary - alpha nav - beta nav ``` echo WATERFALL ```"'
