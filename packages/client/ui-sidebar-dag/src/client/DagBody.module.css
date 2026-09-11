@@ -1,0 +1,161 @@
+/* The chain: one spine, one mark per Turn, one expanded row for the current Turn.
+
+   Tokens are the ones the file-tree pane uses, so the two pane types read as
+   one: `--dsw-alias-label-*` for ink, `--dsw-alias-border-l3` for the hairline
+   and the spine, `--dsw-alias-interactive-bg-*` for row states. */
+.root {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: 1.5;
+}
+
+.header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 6px 0 16px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.count {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.back {
+  border: 0;
+  background: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--dsw-alias-link);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.back:hover { background: var(--dsw-alias-interactive-bg-hover); }
+
+.chain {
+  --dag-mark-size: 9px;
+  --dag-spine-width: 0.5px;
+  --dag-gutter: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px 6px 24px 16px;
+  list-style: none;
+  content-visibility: auto;
+}
+
+.item { position: relative; }
+
+/* The spine runs through each mark's centre and stops at the last node. */
+.item::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--dag-mark-size) / 2);
+  top: 0;
+  bottom: 0;
+  width: var(--dag-spine-width);
+  background: var(--dsw-alias-border-l3);
+}
+
+.item:first-child::before { top: 50%; }
+.item:last-child::before { bottom: 50%; }
+.item:only-child::before { display: none; }
+
+.node {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--dag-gutter) auto 1fr;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 6px 8px 6px 0;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+  corner-shape: round;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+}
+
+.node:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.node:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary);
+}
+.node.current { background: var(--dsw-alias-interactive-bg-active); }
+
+.mark {
+  grid-column: 1;
+  justify-self: center;
+  align-self: start;
+  margin-top: 5px;
+  width: var(--dag-mark-size);
+  height: var(--dag-mark-size);
+  border-radius: 50%;
+  corner-shape: round;
+  background: var(--dsw-alias-bg-base);
+  /* The house hairline, not the drawn graphic's weight: a neutral stroke wider
+     than 0.5px is rejected package-wide by ui-theme's border contract. */
+  border: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.node.current .mark {
+  background: var(--dsw-alias-brand-primary);
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.node.busy .mark { animation: dag-landing 1s ease-in-out infinite; }
+
+.turn {
+  grid-column: 2;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt {
+  grid-column: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node.current .prompt { white-space: normal; }
+
+.response {
+  grid-column: 3;
+  margin-top: 2px;
+  color: var(--dsw-alias-label-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.note {
+  padding: 12px 4px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.titleIcon { margin-right: 6px; }
+
+@keyframes dag-landing {
+  0%, 100% { box-shadow: 0 0 0 0 var(--dsw-alias-interactive-bg-hover-accent); }
+  50% { box-shadow: 0 0 0 4px var(--dsw-alias-interactive-bg-hover-accent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node.busy .mark { animation: none; }
+}
