@@ -59,7 +59,7 @@ describe('ui-sidebar-dag apply', () => {
   })
 
   it('registers the type and its dictionaries', async () => {
-    const { tabs, registered, dictionaries } = await boot()
+    const { tabs, dictionaries } = await boot()
     const definition = tabs.get(DAG_KIND)
     expect(definition?.id).toBe(DAG_ID)
     expect(definition?.priority).toBe('builtin')
@@ -67,11 +67,23 @@ describe('ui-sidebar-dag apply', () => {
     expect(definition?.guide?.map(entry => [entry.order, entry.title(), entry.description?.()]))
       .toEqual([[20, 'guide.title', 'guide.description']])
     expect(dictionaries.get('sidebarDag')).toEqual({ zh, en })
-    expect(registered).toEqual([])
+  })
+
+  it('registers the body under the type id, with its injected face and copy namespace', async () => {
+    const { registered } = await boot()
+    const body = registered.find(entry => entry.name === 'sidebar.right.pane.tab')
+    expect(body?.key).toBe(DAG_ID)
+    expect(body?.locale).toBe('sidebarDag')
+    expect(body?.store).toBeUndefined()
+    expect(typeof body?.inject).toBe('function')
+    const title = registered.find(entry => entry.name === 'sidebar.right.pane.tab.title')
+    expect(title?.key).toBe(DAG_ID)
   })
 
   it('takes every registration back when the plugin is disposed', async () => {
     const { tabs, registered, dictionaries, fiber } = await boot()
+    expect(registered.map(entry => entry.name))
+      .toEqual(['sidebar.right.pane.tab', 'sidebar.right.pane.tab.title'])
     await fiber.dispose()
     expect(tabs.get(DAG_KIND)).toBeUndefined()
     expect(registered).toEqual([])
