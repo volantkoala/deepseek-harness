@@ -238,6 +238,7 @@ function mount(
           renderSlot={renderSlot as never}
           bindDraftMirror={write => wiring.bindMirror(write)}
           requestView={(request) => { store.actions.requestView(request) }}
+          bindViewApplier={() => () => {}}
         />
       )
     }

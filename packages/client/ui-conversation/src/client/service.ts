@@ -30,6 +30,8 @@ import type {
   DraftAttachmentId, DraftAttachmentSerializationResult, SessionInputResolver, SubmitAttachment, SubmitOutcome,
 } from './contract/input.ts'
 import type { InputSubmitMode } from './contract/composer-submission.ts'
+import type { ConversationViewRequest } from './contract/views.ts'
+import type { ViewRequestAppliers } from './view-appliers.ts'
 
 /**
  * The outward conversation face (`ctx.conversation`): the scope-addressed
@@ -67,6 +69,11 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+  /**
+   * Select the addressed Conversation View and publish one request to it.
+   * @param request - the addressed request (a Turn, or a view-owned focus).
+   */
+  requestView(request: ConversationViewRequest): void
 }
 
 /** Create one browser-only image draft descriptor; only its id enters input state. */
@@ -154,6 +161,8 @@ export class ConversationController extends Service implements IConversation {
   readonly input: SessionInputResolver
   /** The per-session composer-block registry. */
   readonly blocks: ComposerBlocks
+  /** Appliers of the mounted Conversation shells, by Session. */
+  private readonly viewAppliers: ViewRequestAppliers
   /** Live upload state per file-kind draft; images never appear here. */
   readonly fileUploads: SnapshotStore<Record<string, DraftFileUpload>> = createSnapshotStore<Record<string, DraftFileUpload>>({})
   private readonly draftAttachments = new Map<DraftAttachmentId, ComposerAttachment>()
@@ -180,10 +189,12 @@ export class ConversationController extends Service implements IConversation {
     input: SessionInputResolver
     blocks: ComposerBlocks
     maxConcurrentFileUploads: number
+    viewAppliers: ViewRequestAppliers
   }) {
     super(ctx, 'conversation')
     this.input = config.input
     this.blocks = config.blocks
+    this.viewAppliers = config.viewAppliers
     this.maxConcurrentFileUploads = config.maxConcurrentFileUploads
     ctx.effect(() => async () => {
       const operations = [...this.fileUploadOperations.values()]
@@ -513,6 +524,20 @@ export class ConversationController extends Service implements IConversation {
   /** Pull one older history page for the scoped Session. */
   async loadOlder(): Promise<void> {
     await this.scopedSession('loadOlder').loadOlder()
+  }
+
+  /**
+   * Hand one request to the Session's mounted shell, failing loud when the
+   * Session has none: a caller that reached this verb has a Session scope, so
+   * a missing applier is a wiring fault rather than a race to ignore.
+   */
+  requestView(request: ConversationViewRequest): void {
+    const sessionId = this.scopeId('requestView')
+    const applier = this.viewAppliers.applierFor(sessionId)
+    if (applier === undefined) {
+      throw new Error(`conversation.requestView: session "${sessionId}" has no mounted conversation shell`)
+    }
+    applier(request)
   }
 
   /** Resolve the caller scope's session face or throw on root contexts. */

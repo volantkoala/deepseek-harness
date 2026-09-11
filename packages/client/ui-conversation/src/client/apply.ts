@@ -34,6 +34,7 @@ import { ConversationSession, ConversationSessionHeader } from './skeleton/Conve
 import { InputBar } from './skeleton/InputBar.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
 import { resolveActiveView } from './view-selection.ts'
+import { ViewRequestAppliers } from './view-appliers.ts'
 import { en, NS, zh, type ConversationKey } from './locales.ts'
 import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
 
@@ -137,6 +138,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-conversation: dictionaries')
   const t = ctx.locale.bind(NS)
   const conversationStore = createConversationStore()
+  const viewAppliers = new ViewRequestAppliers()
   const submissionPolicy = new ComposerSubmissionPolicy(
     ctx.settingsScope.bind<ConversationSettings>({ namespace: CONVERSATION_SETTINGS_NAMESPACE }),
   )
@@ -290,9 +292,13 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       hooks: { conversationViews },
       bindDraftMirror: write => inputHub.shell(sessionId).bindMirror(write),
       requestView: (request) => {
+        if (!viewTabs().some(tab => tab.id === request.view)) {
+          throw new Error(`ui-conversation: no Conversation View "${request.view}" is registered`)
+        }
         activateView(sessionId, request.view)
         actions.requestView(request)
       },
+      bindViewApplier: apply => viewAppliers.register(sessionId, apply),
     }),
   }, ConversationSession)
 
@@ -424,6 +430,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     input: inputHub,
     blocks: composerBlocks,
     maxConcurrentFileUploads,
+    viewAppliers,
   })
   ctx.plugin(todoDockEntry)
   ctx.plugin(queueDockEntry)

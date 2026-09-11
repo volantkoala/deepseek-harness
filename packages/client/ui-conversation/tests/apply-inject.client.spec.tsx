@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { render } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import type { CommandContribution, CommandUiContract } from '@deepseek-ai/dsh-client-ui-commands/client'
 import type { ISession } from '@deepseek-ai/dsh-api-session-controller/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import {
-  SlotTestRuntime, stubSettingsScope, usePinnedBrowserLanguages,
+  bindSnapshotSelector, SlotTestRuntime, stubSettingsScope, usePinnedBrowserLanguages,
 } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionBehaviorOverrides } from '@deepseek-ai/dsh-client-test-runtime'
 import {
@@ -15,6 +20,7 @@ import {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { createConversationStore } from '../src/client/stores.ts'
+import { ConversationSession } from '../src/client/skeleton/ConversationSession.tsx'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 
 usePinnedBrowserLanguages('zh-CN')
@@ -23,6 +29,16 @@ const ROOT = 'root-1' as SessionId
 
 type ConversationInstance = ReturnType<ReturnType<typeof createConversationStore>['create']>
 type ConversationActions = ConversationInstance['actions']
+
+type SessionSlotProps = ComponentProps<typeof ConversationSession>
+
+/** Resource seat the resources plugin merges into GlobalStandardProps. */
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
+/** This fixture projects no Session keys. */
+const useProjection: SessionSlotProps['useProjection'] = () => undefined
+/** Target hooks the strict Session body never reads. */
+const useChat: SessionSlotProps['useChat'] = () => { throw new Error('unused') }
+const useTrajectory: SessionSlotProps['useTrajectory'] = () => { throw new Error('unused') }
 
 function sessionFakeFor() {
   return {
@@ -113,6 +129,46 @@ async function bench() {
   }
 }
 
+/**
+ * Mount the real strict Session body over the inject face `apply` ships, so a
+ * request handed to the Session reaches that shell's own store write.
+ * @param b - the bench whose Session carries the shell.
+ * @returns the mounted view and the Session's live store instance.
+ */
+function mountConversationSession(b: Awaited<ReturnType<typeof bench>>) {
+  const { injected, instance } = b.conversationApi(ROOT)
+  const sessionFace = b.runtime.sessions.binding(ROOT)?.session
+  if (sessionFace === undefined) throw new Error('apply-inject: the fixture Session has no binding')
+  const view = render(
+    <ConversationSession
+      sessionId={ROOT}
+      SessionProvider={({ children }) => children}
+      useSession={bindSnapshotSelector(sessionFace)}
+      useConversation={bindSnapshotSelector(b.runtime.ctx.uiConversation.binding(ROOT).snapshot)}
+      useConversationViews={bindSnapshotSelector(injected.hooks.conversationViews)}
+      useChat={useChat}
+      useTrajectory={useTrajectory}
+      useSessions={bindSnapshotSelector(b.runtime.sessions.list)}
+      usePanelInfo={bindSnapshotSelector(b.runtime.panelInfo)}
+      useResource={useResource}
+      useSessionPendingInteraction={bindSnapshotSelector(
+        createSnapshotStore<SessionPendingInteractionSnapshot>(new Map()),
+      )}
+      useWorkspaces={bindSnapshotSelector(b.runtime.workspaces.list)}
+      useProjection={useProjection}
+      useInput={bindSnapshotSelector(b.inputApi(ROOT).state)}
+      inputActions={b.inputApi(ROOT).actions}
+      useStore={bindSnapshotSelector(instance.store)}
+      actions={instance.actions}
+      renderSlot={() => null}
+      bindDraftMirror={injected.bindDraftMirror}
+      requestView={injected.requestView}
+      bindViewApplier={injected.bindViewApplier}
+    />,
+  )
+  return { view, instance }
+}
+
 describe('Conversation inject API', () => {
   it('owns the File action, reads its mounted composer availability, and unregisters on disposal', async () => {
     const b = await bench()
@@ -162,7 +218,7 @@ describe('Conversation inject API', () => {
     const b = await bench()
     const { injected } = b.conversationApi(ROOT)
     expect(b.sessionFake.loadOlder).not.toHaveBeenCalled()
-    expect(Object.keys(injected)).toEqual(['hooks', 'bindDraftMirror', 'requestView'])
+    expect(Object.keys(injected)).toEqual(['hooks', 'bindDraftMirror', 'requestView', 'bindViewApplier'])
     expect(b.viewSource(ROOT).getSnapshot()).toEqual([])
     await b.runtime.dispose()
   })
@@ -372,6 +428,49 @@ describe('Conversation inject API', () => {
     await expect(b.residentApi(ROOT).selectWorkspace('workspace-4' as WorkspaceId))
       .rejects.toThrow('offline')
     expect(b.runtime.sessions.calls.filter(call => call.method === 'open')).toHaveLength(opens)
+    await b.runtime.dispose()
+  })
+
+  it('fails loud when the addressed Session has no mounted conversation shell', async () => {
+    const b = await bench()
+    const scoped = b.runtime.sessions.scope(ROOT)!.get('conversation')!
+    expect(() => { scoped.requestView({ kind: 'turn', view: 'chat', turn: 1 }) })
+      .toThrow(`conversation.requestView: session "${ROOT}" has no mounted conversation shell`)
+    await b.runtime.dispose()
+  })
+
+  it('registers the mounted shell as its Session request applier, and clears it on unmount', async () => {
+    const b = await bench()
+    const scoped = b.runtime.sessions.scope(ROOT)!.get('conversation')!
+    const removeChat = b.slots.register(
+      { name: 'conversation.view', id: 'chat', order: 0 },
+      (() => null) as never,
+    )
+    expect(() => { scoped.requestView({ kind: 'turn', view: 'chat', turn: 1 }) })
+      .toThrow(/has no mounted conversation shell/)
+
+    const { view, instance } = mountConversationSession(b)
+    scoped.requestView({ kind: 'turn', view: 'chat', turn: 3 })
+    expect(instance.store.getSnapshot()).toMatchObject({
+      view: 'chat',
+      viewRequest: { kind: 'turn', view: 'chat', turn: 3 },
+    })
+
+    view.unmount()
+    expect(() => { scoped.requestView({ kind: 'turn', view: 'chat', turn: 4 }) })
+      .toThrow(/has no mounted conversation shell/)
+    removeChat()
+    await b.runtime.dispose()
+  })
+
+  it('fails loud when the applier receives a request for an unregistered View', async () => {
+    const b = await bench()
+    const scoped = b.runtime.sessions.scope(ROOT)!.get('conversation')!
+    b.slots.register({ name: 'conversation.view', id: 'chat', order: 0 }, (() => null) as never)
+    const { view } = mountConversationSession(b)
+    expect(() => { scoped.requestView({ kind: 'focus', view: 'nope', focus: 'x' }) })
+      .toThrow('ui-conversation: no Conversation View "nope" is registered')
+    view.unmount()
     await b.runtime.dispose()
   })
 

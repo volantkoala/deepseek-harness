@@ -411,6 +411,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
         renderSlot={renderSlot}
         bindDraftMirror={() => () => {}}
         requestView={conversation.actions.requestView}
+        bindViewApplier={() => () => {}}
       />
     </>,
   )

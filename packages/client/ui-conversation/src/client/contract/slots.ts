@@ -19,6 +19,7 @@ import type {
   ComposerKeyboard, DraftAttachmentId, EditSelection, InputActions, InputNotice, InputState,
 } from './input.ts'
 import type { createConversationStore } from '../stores.ts'
+import type { ViewRequestApplier } from '../view-appliers.ts'
 import type { BusyEnterBehavior } from './composer-submission.ts'
 import type { ConversationSnapshot } from './snapshot.ts'
 import type { ConversationViewRequest, ViewTab } from './views.ts'
@@ -273,6 +274,12 @@ export interface ConversationSessionInjected {
   bindDraftMirror: (write: (text: string) => void) => () => void
   /** Select and activate one View while addressing an opaque focus request to it. */
   requestView: (request: ConversationViewRequest) => void
+  /**
+   * Register this Session's request applier while its shell is mounted.
+   * @param apply - applies one request as the shell's own store write.
+   * @returns disposer that clears the registration.
+   */
+  bindViewApplier: (apply: ViewRequestApplier) => () => void
 }
 
 /** Business callbacks injected into the strict Session header. */

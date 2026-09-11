@@ -13,6 +13,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { ComposerBlockRegistry } from '../src/client/input/blocks.ts'
 import { InputHub } from '../src/client/input/hub.ts'
 import { ConversationController } from '../src/client/service.ts'
+import { ViewRequestAppliers } from '../src/client/view-appliers.ts'
 import { zh } from '../src/client/locales.ts'
 
 async function bench(maxConcurrentFileUploads = 2) {
@@ -42,6 +43,7 @@ async function bench(maxConcurrentFileUploads = 2) {
     input: hub,
     blocks: new ComposerBlockRegistry(),
     maxConcurrentFileUploads,
+    viewAppliers: new ViewRequestAppliers(),
   })
   await fiber.await()
   const root = runtime.ctx.get('conversation') as ConversationController
@@ -455,6 +457,7 @@ describe('ConversationController', () => {
       input: new InputHub(bare, makeTranslate(zh, {})),
       blocks: new ComposerBlockRegistry(),
       maxConcurrentFileUploads: 2,
+      viewAppliers: new ViewRequestAppliers(),
     }).await()
     const orphan = bare.get('conversation') as ConversationController
     await expect(orphan.send('x')).rejects.toThrow(/sessions service unavailable/)

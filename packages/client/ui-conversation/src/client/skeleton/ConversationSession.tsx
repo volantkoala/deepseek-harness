@@ -167,7 +167,7 @@ export function ConversationSessionHeader({
  */
 export function ConversationSession({
   useSession, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
-  renderSlot, bindDraftMirror, requestView,
+  renderSlot, bindDraftMirror, requestView, bindViewApplier,
 }: ConversationSessionProps) {
   const tabs = useConversationViews(value => value)
   const selectedId = useStore(s => s.view)
@@ -185,6 +185,10 @@ export function ConversationSession({
     // Mount-only (deps pinned to inputActions): later store writes come from
     // the machine mirror, not this seed effect.
   }, [inputActions])
+
+  // The mounted shell is its Session's request applier: a request handed to
+  // the Session runs this same closure, guard included.
+  useEffect(() => bindViewApplier(requestView), [bindViewApplier, requestView])
 
   if (session.blank && conversationPhase(session, conversation) === 'blank') return null
   return (
