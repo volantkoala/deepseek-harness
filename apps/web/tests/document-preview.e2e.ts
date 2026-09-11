@@ -61,7 +61,11 @@ describe.skipIf(MODE === 'record')('web e2e: document preview through Files', ()
   beforeAll(async () => {
     outsideRoot = await mkdtemp(join(tmpdir(), 'dsh-preview-outside-'))
     scaffold = await launchWebScaffold({ replayFixture: FIXTURE, paceMs: 5, compareReplaySession: false, extraOverlayPath: PAGING_PATCH })
-    browser = await chromium.launch()
+    // CI uses Playwright's pinned browser. A developer may point this one
+    // scenario at an installed Chromium when the matching browser download
+    // is temporarily unavailable.
+    const executablePath = process.env.DSH_PLAYWRIGHT_EXECUTABLE_PATH
+    browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
@@ -134,6 +138,10 @@ describe.skipIf(MODE === 'record')('web e2e: document preview through Files', ()
 
     const column = page.locator('[data-rightbar-col]')
     await page.locator('[data-sidebar-right-expand]').click()
+    // A fresh pane seeds the guide — two types register guide entries, so no
+    // single one of them seeds a pane — and this scenario reads the file tree,
+    // so it opens Files out of the guide, which replaces the guide in its slot.
+    await column.locator('[data-sidebar-right-guide-entry="files"]').click()
     await column.locator('[data-files-state="tree"]').waitFor({ state: 'visible' })
     await column.locator('[data-files-reload]').click()
     const filesTab = column.locator('[data-dockkit-tab]').filter({ has: page.getByText('Files', { exact: true }) })

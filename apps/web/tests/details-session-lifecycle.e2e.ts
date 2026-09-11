@@ -133,7 +133,11 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     expect(fixtureUserPrompts(fixture)).toEqual([PROMPT])
     scaffold = await launchWebScaffold({ replayFixture: FIXTURE, paceMs: 5, compareReplaySession: false })
     await seedSession(scaffold, await readFile(SEED_FIXTURE, 'utf8'), 'details-session-lifecycle-seed')
-    browser = await chromium.launch()
+    // CI uses Playwright's pinned browser. A developer may point this one
+    // scenario at an installed Chromium when the matching browser download
+    // is temporarily unavailable.
+    const executablePath = process.env.DSH_PLAYWRIGHT_EXECUTABLE_PATH
+    browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
@@ -247,6 +251,10 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     // CSS width assigned by the grid solver.
     await expect.poll(() => sidebarSnapshot(page), { timeout: 5_000 })
       .toMatchObject({ mode: 'push', panelContentWidth: normalWidth, panelOuterWidth: normalWidth + 1, resizeHandleWidth: 8 })
+    // A fresh pane seeds the guide — two types register guide entries, so no
+    // single one of them seeds a pane — and this scenario reads the file tree,
+    // so it opens Files out of the guide, which replaces the guide in its slot.
+    await column.locator('[data-sidebar-right-guide-entry="files"]').click()
     await expect.poll(async () => ({
       filesVisible: await column.locator('[data-files-state="tree"]').isVisible(),
       errors: tripwire.pageErrors,
@@ -256,6 +264,10 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     await expect.poll(() => split.isDisabled()).toBe(false)
     await split.click()
     await expect.poll(() => panes.count()).toBe(2)
+    // The split seeds the new pane with the default page — the guide — so this
+    // opens Files out of it, the surface the second pane retains.
+    await expect.poll(() => panes.nth(1).locator('[data-sidebar-right-guide-entry="files"]').count()).toBe(1)
+    await panes.nth(1).locator('[data-sidebar-right-guide-entry="files"]').click()
     await panes.first().locator('[data-dockkit-tab]').filter({ hasText: 'Files' }).click()
     await expect.poll(() => panes.first().locator('[data-files-state="tree"]').count()).toBe(1)
     const retainedA = await paneSnapshot(page)
@@ -278,6 +290,8 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     await expect.poll(() => detailsTrack(page)).toBe(0)
     await open()
     expect(await panel.getAttribute('data-sidebar-right-panel')).toBe('push')
+    // B's surface is its own, and its fresh pane seeds the guide too.
+    await column.locator('[data-sidebar-right-guide-entry="files"]').click()
     await column.locator('[data-files-state="tree"]').waitFor({ timeout: 15_000 })
     const workspaceDirectory = column.locator('[data-files-entry="directory"] > button').filter({ hasText: /^workspace$/ })
     await workspaceDirectory.waitFor({ timeout: 15_000 })
