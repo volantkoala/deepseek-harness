@@ -228,8 +228,9 @@ describe.skipIf(MODE === 'record')('web e2e: the DAG-learn turn map', () => {
     }).toBe('2')
     expect(await turnRowOnScreen(page, 2)).toBe(true)
     await first.click()
-    // The transcript reads the first Turn — its own row is on screen — and the
-    // map follows the transcript onto that node.
+    // The first Turn's row is on screen. Both Turns fit this recording's
+    // transcript viewport, so this poll reads the same before and after the
+    // click; the mark poll below carries the move.
     await expect.poll(() => turnRowOnScreen(page, 1), { timeout: 15_000 }).toBe(true)
     await expect.poll(async () => await page.locator('[data-dag-node][aria-current="true"]').getAttribute('data-dag-node'), {
       timeout: 15_000,
