@@ -15,6 +15,7 @@ English | [中文](README.zh.md)
 
 - [Conversation assembly](#conversation-assembly)
 - [Shell and standard props](#shell-and-standard-props)
+- [View requests](#view-requests)
 - [Temporary composer entries](#temporary-composer-entries)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
@@ -57,6 +58,15 @@ Queued submission echoes show “Sending…” beside disabled edit, remove, and
 Disabled Send and Stop buttons suppress their tooltips, including a Stop button that becomes a disabled Send button when the turn ends. While a normal composer is running, its primary pointer action remains Stop when the draft is empty or input is unavailable. Actionable text or attachments switch the same seat to Send; clearing or successfully submitting the draft restores Stop. The busy-Enter setting selects the Queue or Steer delivery for ordinary Sessions and continuable children, and the running Send button delivers through the same mode plain Enter resolves to; while it is enabled (no upload pending) over a plain message draft its label names that mode (Queue message or Steer message), so the setting governs Enter and the button together while Cmd/Ctrl+Enter still uses the other mode, and idle sessions, empty drafts, and `/` command lines keep the plain Send label ([decision](../../../.agents/notes/implemented/bug-fix/2026-09-04-busy-send-button-follows-enter-setting.md)). Their QueueDock rows share Edit, Remove, and Steer, and an empty draft shares the steer-all chord. One-shot children remain read-only. Plan mode and active goals do not change attachment intake. Continuable children keep separate Send and Stop actions but expose no File row, paste, or drop intake; if their parent is offline, Send and the composer gestures lock while QueueDock controls for the live inbox remain available ([decisions](../../../.agents/notes/archived/bug-fix/2026-08-20-running-draft-primary-send.md), [inbox controls](../../../.agents/notes/implemented/feature/2026-08-27-continuable-subagent-human-inbox-control.md)).
 
 File chips and editable skill references share a whole-reference hover background and follow the composer's line height and text baseline. The first click delegates preview opening to the registered reference source immediately, including the first click of a double-click sequence. Subsequent clicks retain native text selection; an existing noncollapsed selection suppresses pointer preview activation. Previewing does not change the draft, its clipboard projection, or submission.
+
+<a id="view-requests"></a>
+## View requests
+
+`ctx.conversation.requestView(request)` selects a Conversation View and addresses one request to it. It is scope-addressed like the other verbs on that face: a caller outside the shell resolves the Session with `sessions.scope(sessionId)` and reaches the service from that scope. The request is a discriminated union — `{ kind: 'focus', view, focus }` carrying a View-owned opaque identity, or `{ kind: 'turn', view, turn }` addressing a Turn by number — so a View reads the addressing vocabulary it owns.
+
+The shell is the only writer. The mounted shell registers itself as the Session's request applier, and `requestView` hands the request to that applier, which activates the addressed View and writes the request through the per-Session store exactly as an in-shell caller does; the service holds no request state of its own. The addressed View receives it as its `viewRequest` prop, consumes it, and acknowledges it with `completeViewRequest`. One request object stays published until that acknowledgement, so a View identifies a new request by identity rather than by re-reading its fields.
+
+Both failure paths are loud: `no Conversation View "<view>" is registered` when the addressed View is not registered, and `no mounted conversation shell` when the addressed Session has no shell mounted. A Session whose shell is not mounted has no applier to write through, so the missing applier is an anomaly worth a message rather than silence.
 
 <a id="temporary-composer-entries"></a>
 ## Temporary composer entries

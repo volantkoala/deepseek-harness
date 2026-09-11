@@ -15,6 +15,7 @@ kind: "package-reference"
 
 - [Conversation 组装](#conversation-assembly)
 - [Shell 与标准 props](#shell-and-standard-props)
+- [视图请求](#view-requests)
 - [临时 composer entry](#temporary-composer-entries)
 - [模型体验](#model-experience)
 - [已知限制与暂缓事项](#known-limitations-and-deferred-work)
@@ -57,6 +58,15 @@ Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染
 Send 和 Stop 按钮禁用时不显示提示气泡，轮次结束后由 Stop 切换成禁用 Send 的按钮也遵循此规则。普通 composer 运行时，如果草稿为空或输入不可用，主指针操作保持为 Stop。可提交的文字或附件会把同一位置切换为 Send；清空或成功提交草稿后恢复 Stop。繁忙态 Enter 设置为普通 Session 与可继续 child 选择 Queue 或 Steer 投递，运行中的 Send 按钮按 plain Enter 解析出的同一模式投递；当它在普通消息草稿上可用（没有待上传文件）时，其标签以该模式命名（排队发送或插话发送），因此该设置同时约束 Enter 与按钮，而 Cmd/Ctrl+Enter 仍使用另一模式；空闲会话、空草稿与 `/` 命令行保留普通的 Send 标签（[决策](../../../.agents/notes/implemented/bug-fix/2026-09-04-busy-send-button-follows-enter-setting.zh.md)）。它们的 QueueDock 行共享 Edit、Remove 与 Steer，空草稿也共享 steer-all 组合键。One-shot child 继续只读。Plan Mode 与 active goal 不改变附件入口。可继续 child 保留独立的 Send 与 Stop 操作，但不提供「文件」菜单项、粘贴或拖放入口；parent 离线时，Send 与 composer 手势锁定，但在线 inbox 的 QueueDock 控制仍可使用（[决策](../../../.agents/notes/archived/bug-fix/2026-08-20-running-draft-primary-send.md)、[inbox 控制](../../../.agents/notes/implemented/feature/2026-08-27-continuable-subagent-human-inbox-control.zh.md)）。
 
 文件标签和可编辑的 skill 引用共用覆盖整个引用的悬停背景，并跟随输入框的行高与文字基线。首次点击立即由已注册的引用来源负责打开预览，包括双击序列的第一次点击。后续点击保留原生文本选择行为；已有非折叠选区时，指针点击不打开预览。预览不改变草稿、剪贴板文本或提交内容。
+
+<a id="view-requests"></a>
+## 视图请求
+
+`ctx.conversation.requestView(request)` 选中一个 Conversation View，并向它发出一条请求。它与这个对外面上的其他动词一样按作用域寻址：外壳之外的调用方用 `sessions.scope(sessionId)` 解析会话，再从该作用域取得服务。请求是带判别标签的联合体——`{ kind: 'focus', view, focus }` 携带视图自有的不透明身份，或 `{ kind: 'turn', view, turn }` 按数字寻址一个轮次——因此视图读到的是它自己拥有的那套寻址词汇。
+
+外壳是唯一的写入方。已挂载的外壳把自身注册为该会话的请求施加方，`requestView` 把请求交给该施加方，由它激活所寻址的视图、并完全按外壳内调用方的做法经按会话的 store 写入请求；服务自身不持有任何请求状态。被寻址的视图经 `viewRequest` prop 收到它、消费它，再用 `completeViewRequest` 确认它。在确认之前，同一个请求对象一直处于已发布状态，因此视图靠身份识别新请求，而不是重读它的字段。
+
+两条失败路径都响亮：被寻址视图未注册时给出 `no Conversation View "<view>" is registered`，被寻址会话没有已挂载外壳时给出 `no mounted conversation shell`。外壳未挂载的会话没有施加方可写入，因此缺失的施加方是值得一条消息的异常，而不是沉默。
 
 <a id="temporary-composer-entries"></a>
 ## 临时 composer entry
