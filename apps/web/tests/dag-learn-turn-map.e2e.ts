@@ -3,10 +3,12 @@
 // page in the right Sidebar, so the browser lane is the interface that sees it:
 // this scenario borrows that recording read-only (snapshot.yml's `session.source`)
 // and drives the real page — the guide lists both registered types, the dag
-// page draws one node per started Turn, and selecting a node moves the
-// transcript to that Turn. Zero model calls in replay: the map renders the
-// host's turn outline and the client's own reading position, so nothing here
-// needs a replay fixture.
+// page draws one node per started Turn, and selecting a node moves the reading
+// position and the current mark onto that Turn. Both Turns of this recording fit
+// the transcript viewport, so that move is read from the `aria-current` polls and
+// the golden; observing a scroll would need a transcript that overflows. Zero
+// model calls in replay: the map renders the host's turn outline and the
+// client's own reading position, so nothing here needs a replay fixture.
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
@@ -77,13 +79,15 @@ async function openDagPage(page: Page): Promise<void> {
   await page.locator('[data-sidebar-right-expand]').click()
   const column = page.locator('[data-rightbar-col]')
   // Two types contribute guide entries, so a pane with no remembered page
-  // seeds the guide rather than either type.
+  // seeds the guide rather than either type. This case only needs the guide to
+  // be what the pane seeded and its own entry to be there; which entries the
+  // guide holds besides them belongs to the composition tier.
   const guide = column.locator('[data-sidebar-right-guide]')
   await guide.waitFor({ timeout: 15_000 })
   const entries = column.locator('[data-sidebar-right-guide-entry]')
   await expect.poll(async () => (await entries.evaluateAll(nodes =>
     nodes.map(node => node.getAttribute('data-sidebar-right-guide-entry')))).sort(), { timeout: 10_000 })
-    .toEqual(['dag', 'files'])
+    .toEqual(expect.arrayContaining(['dag', 'files']))
   await column.locator('[data-sidebar-right-guide-entry="dag"]').click()
   await column.locator('[data-dag-state="map"]').waitFor({ timeout: 15_000 })
 }

@@ -66,7 +66,7 @@ Send 和 Stop 按钮禁用时不显示提示气泡，轮次结束后由 Stop 切
 
 外壳是唯一的写入方。已挂载的外壳把自身注册为该会话的请求施加方，`requestView` 把请求交给该施加方，由它激活所寻址的视图、并完全按外壳内调用方的做法经按会话的 store 写入请求；服务自身不持有任何请求状态。被寻址的视图经 `viewRequest` prop 收到它、消费它，再用 `completeViewRequest` 确认它。在确认之前，同一个请求对象一直处于已发布状态，因此视图靠身份识别新请求，而不是重读它的字段。
 
-两条失败路径都响亮：被寻址视图未注册时给出 `no Conversation View "<view>" is registered`，被寻址会话没有已挂载外壳时给出 `no mounted conversation shell`。外壳未挂载的会话没有施加方可写入，因此缺失的施加方是值得一条消息的异常，而不是沉默。
+两条失败路径都响亮：被寻址视图未注册时给出 `ui-conversation: no Conversation View "<view>" is registered`，被寻址会话没有已挂载外壳时给出 `conversation.requestView: session "<id>" has no mounted conversation shell`。外壳未挂载的会话没有施加方可写入，因此缺失的施加方是值得一条消息的异常，而不是沉默。
 
 <a id="temporary-composer-entries"></a>
 ## 临时 composer entry

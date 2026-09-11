@@ -92,13 +92,13 @@ An empty Session shows one line; a deployment without the projection shows a dif
 - A right-Sidebar tab type draws every started turn of a Session as one chain node in ascending turn order, sourced from the `turnOutline` projection, with no event projection in the map package.
 - Selecting a node moves the conversation to that turn with the Chat view as the addressed view: a loaded turn lands through the existing loaded-mark path, and an unloaded turn pages history through the outline seq and lands. Selecting a node while another Conversation view is active returns the conversation to Chat at that turn, because the request carries the view selection with it.
 - The one-shot request is a discriminated union carrying the addressed view id beside a typed arm. The string focus encoding the store published before is gone, and no turn formatter is shared between packages: a client bundle forbids cross-plugin value imports, so the turn travels as a field rather than as a format two packages would have to keep in step.
-- `requestView` fails loud in two places: `no Conversation View "<view>" is registered` when the addressed view is not registered, and `no mounted conversation shell` when the addressed Session has no mounted shell. Neither path can silently drop a request.
+- `requestView` fails loud in two places: `ui-conversation: no Conversation View "<view>" is registered` when the addressed view is not registered, and `conversation.requestView: session "<id>" has no mounted conversation shell` when the addressed Session has no mounted shell. Neither path can silently drop a request.
 - The right Sidebar's default page for a pane with no remembered page is now the guide rather than the file tree: `files` (order 10) and `dag` (order 20) are two guide entries, and the surface opens the guide whenever the entry count is not one. The file tree stays reachable as `openTab('files')`.
 - A Session's reading position crosses packages as client state, and `ui-chat` is its only writer: a Session whose Chat view is unmounted reports `{ activeTurn: null, busyTurn: null }`, so the map marks no position while nothing is showing one, and an assembly with no Chat plugin draws no current mark at all.
 - The projection is optional. A deployment that provides no turn outline draws its own line, distinct from the empty-Session line, and the chain still renders.
 - The chain keeps every node in the DOM and mitigates row cost with `content-visibility: auto`; the Session's turn count bounds the row count and nothing below the product bounds that.
 
-## Risks
+What the decision gives up:
 
 - **The applier invariant is a convention, not a structural guarantee.** A request reaches a Session's shell through the applier that shell registers, and nothing prevents a Session's right-Sidebar tab from coexisting with another Session's shell in a floating panel, where a jump can fail loud where a reader expects it to work. The composition spec pins the shipped arrangement.
 - **The change touches hot paths in two core packages.** The verb writes the conversation store's view selection, and the Chat view consumes a request on the same state its scrolling drives. Both suites cover their paths.
@@ -107,7 +107,7 @@ An empty Session shows one line; a deployment without the projection shows a dif
 - **The guide entry moves the right Sidebar's default page.** Two guide entries mean a new pane opens the guide instead of the file tree. Accepted rather than avoided: the guide is the designed chooser once one type is no longer the only one, and the alternative — registering no guide entry — leaves the map undiscoverable from the interface.
 - **The map shows structure, not health.** Turn errors, retries, and compactions are not part of the projection, so a turn that failed reads like any other turn. Presenting failure state would need another source and is deliberately out of scope.
 
-## Open questions
+## Deferred
 
 - The chain bounds no content width and keeps one row rhythm at both panel widths; whether the full-width panel wants a content bound or two-line previews is unresolved.
 - The chain exposes no "jump to this turn" action in the tab's menu seat (`sidebar.right.tab.menu.item`); the rows are its only entry point.

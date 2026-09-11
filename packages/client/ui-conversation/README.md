@@ -66,7 +66,7 @@ File chips and editable skill references share a whole-reference hover backgroun
 
 The shell is the only writer. The mounted shell registers itself as the Session's request applier, and `requestView` hands the request to that applier, which activates the addressed View and writes the request through the per-Session store exactly as an in-shell caller does; the service holds no request state of its own. The addressed View receives it as its `viewRequest` prop, consumes it, and acknowledges it with `completeViewRequest`. One request object stays published until that acknowledgement, so a View identifies a new request by identity rather than by re-reading its fields.
 
-Both failure paths are loud: `no Conversation View "<view>" is registered` when the addressed View is not registered, and `no mounted conversation shell` when the addressed Session has no shell mounted. A Session whose shell is not mounted has no applier to write through, so the missing applier is an anomaly worth a message rather than silence.
+Both failure paths are loud: `ui-conversation: no Conversation View "<view>" is registered` when the addressed View is not registered, and `conversation.requestView: session "<id>" has no mounted conversation shell` when the addressed Session has no shell mounted. A Session whose shell is not mounted has no applier to write through, so the missing applier is an anomaly worth a message rather than silence.
 
 <a id="temporary-composer-entries"></a>
 ## Temporary composer entries
