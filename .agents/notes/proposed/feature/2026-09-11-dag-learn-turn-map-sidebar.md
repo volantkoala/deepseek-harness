@@ -17,7 +17,7 @@ What is missing is not a turn model or a landing routine. It is a supported way 
 
 ## Proposal
 
-Add DAG-learn, a read-only turn map, as a right-Sidebar tab type in a new client package `@deepseek-ai/dsh-client-ui-sidebar-dag`. Every started turn is a node in a vertical chain drawn from the host's own turn outline; selecting a node moves the conversation to that turn. The map persists nothing, edits nothing, and owns no turn data: it is a projection consumer plus two thin cross-package seams.
+Add DAG-learn, a read-only turn map, as a right-Sidebar tab type in a new client package `@deepseek-ai/dsh-client-ui-sidebar-dag`. Every started turn is a node in a vertical chain drawn from the host's own turn outline; selecting a node moves the conversation to that turn. The type registers a guide entry beside the file tree's, so a pane with no remembered page opens the guide — a two-entry chooser where the file tree used to be that default. The map persists nothing, edits nothing, and owns no turn data: it is a projection consumer plus two thin cross-package seams.
 
 Three seams carry it, each owned by the package that already owns the corresponding state.
 
@@ -107,6 +107,7 @@ An empty Session shows one line; a deployment without the projection shows a dif
 - **The change touches hot paths in two core packages.** The service verb and the request consumer sit on the transcript's scrolling and the conversation's view selection. Existing suites cover both, and the plan adds explicit regression coverage for the Trajectory path, but the review burden is in those two packages, not in the new one.
 - **The request contract changes shape.** Making the request a discriminated union moves an existing consumer's read (Trajectory) and the store action that publishes requests, while their behaviour stays the same. The plan carries regression coverage for the Trajectory path and for the existing in-shell producer, so the cost is contained to the two call sites and their tests.
 - **No virtualisation until measured.** The row count is bounded by the Session's turn count, which is not bounded by the product. `content-visibility` mitigates rendering cost; the threshold that would force virtualisation is not known yet and is recorded as a known limitation rather than guessed at now.
+- **The guide entry moves the right Sidebar's default page.** Two guide entries mean a new pane opens the guide instead of the file tree. Accepted rather than avoided: the guide is the designed chooser once one type is no longer the only one, and the alternative — registering no guide entry — leaves the map undiscoverable from the interface.
 - **The map shows structure, not health.** Turn errors, retries, and compactions are not part of the projection, so a turn that failed reads like any other turn. Presenting failure state would need another source and is deliberately out of scope.
 
 ## Open questions
