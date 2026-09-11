@@ -6,11 +6,15 @@ import { dagInject } from '../src/client/face.ts'
 
 const SESSION = SessionId('s-1')
 
-function boot(options: { scope?: boolean } = {}) {
+function boot(options: { scope?: boolean; conversation?: boolean } = {}) {
   const ctx = new Context()
   const requestView = vi.fn()
+  // The scope answers services the way the real one does: through `get`, so a
+  // face that reads a scope property cannot pass this harness.
   ctx.provide('sessions', {
-    scope: () => (options.scope === false ? undefined : { conversation: { requestView } }),
+    scope: () => (options.scope === false
+      ? undefined
+      : { get: (_name: string) => (options.conversation === false ? undefined : { requestView }) }),
   } as never)
   return { ctx, requestView }
 }
@@ -24,7 +28,13 @@ describe('dagInject', () => {
 
   it('fails loud when the Session has no scope', () => {
     const { ctx } = boot({ scope: false })
-    expect(() => { dagInject(ctx)(SESSION).openTurn(7) }).toThrow(/resolved no scope/)
+    expect(() => { dagInject(ctx)(SESSION).openTurn(7) }).toThrow(/session "s-1" resolved no scope/)
+  })
+
+  it('fails loud when the scope resolves no conversation service', () => {
+    const { ctx } = boot({ conversation: false })
+    expect(() => { dagInject(ctx)(SESSION).openTurn(7) })
+      .toThrow(/session "s-1" resolved no conversation service/)
   })
 
   it('reads the Chat view location when one is published, and nothing when none is', () => {

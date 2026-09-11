@@ -18,19 +18,30 @@ const CHAT_VIEW = 'chat'
 
 /**
  * Build the per-Session injected face.
- * @param ctx - the plugin's context, read at each ask so a late service is seen.
+ *
+ * The renderer builds one face per entry and Session binding, so `location` is
+ * the answer at that build: a `chatView` published later reaches only the faces
+ * built after it.
+ * @param ctx - the plugin's context.
  * @returns the inject factory the body registration declares.
  */
 export function dagInject(ctx: Context): (sessionId: SessionId) => DagInjected {
   return sessionId => ({
     openTurn: (turn) => {
       const scope = ctx.sessions.scope(sessionId)
-      // A row is only drawn for a Session the sidebar is showing, so a scope
-      // that resolves nothing is a wiring fault rather than a race to ignore.
+      // A Session pruned or no longer listed leaves the row it drew with no
+      // scope to address.
       if (scope === undefined) {
         throw new Error(`ui-sidebar-dag: session "${sessionId}" resolved no scope`)
       }
-      scope.conversation.requestView({ kind: 'turn', view: CHAT_VIEW, turn })
+      // The scope's fiber reaches only its own ancestors, while the Conversation
+      // service is provided by a sibling entry, so the property proxy cannot see
+      // it; the strict get reads the service store instead.
+      const conversation = scope.get('conversation')
+      if (conversation === undefined) {
+        throw new Error(`ui-sidebar-dag: session "${sessionId}" resolved no conversation service`)
+      }
+      conversation.requestView({ kind: 'turn', view: CHAT_VIEW, turn })
     },
     location: ctx.get('chatView')?.location(sessionId),
   })
