@@ -41,8 +41,8 @@ const NO_UNSUBSCRIBE = (): void => {}
  */
 function useViewLocation(source: ObservableSnapshot<ChatViewLocation> | undefined): ChatViewLocation | null {
   return useSyncExternalStore(
-    // The source is bound once per source, not once per render: the framework
-    // resubscribes whenever the subscription's identity changes.
+    // The wrapper keeps the store's receiver — a bare method reference is what
+    // the unbound-method rule rejects — and one identity per source for uSES.
     useCallback((fn: () => void): (() => void) => source?.subscribe(fn) ?? NO_UNSUBSCRIBE, [source]),
     () => source?.getSnapshot() ?? null,
   )
@@ -56,8 +56,7 @@ export function DagBody({
   // return would be a conditional hook.
   const outline = useProjection('turnOutline')
   const nodes = turnNodes(outline)
-  // The tabbable default before the reader moves focus: the chain's first node,
-  // absent while the chain is empty.
+  // The head of the chain, absent while the chain is empty.
   const headTurn = nodes[0]?.turn ?? null
   const view = useViewLocation(location)
   const listRef = useRef<HTMLOListElement>(null)
@@ -66,6 +65,11 @@ export function DagBody({
   const [following, setFollowing] = useState(true)
 
   const currentTurn = view?.activeTurn ?? null
+  // The tab stop: the reader's roving focus while the chain still holds that
+  // Turn, else the current Turn, else the head — so an outline that drops the
+  // row under the focus never leaves the chain without one.
+  const hasRovingRow = rovingTurn !== null && nodes.some(({ turn }) => turn === rovingTurn)
+  const tabStop = hasRovingRow ? rovingTurn : currentTurn ?? headTurn
   const activeRow = (): HTMLElement | null => currentRowRef.current
   const backToCurrent = (): void => {
     setFollowing(true)
@@ -144,7 +148,7 @@ export function DagBody({
                 data-dag-node={node.turn}
                 className={clsx(css.node, isCurrent && css.current, isBusy && css.busy)}
                 aria-current={isCurrent || undefined}
-                tabIndex={node.turn === (rovingTurn ?? currentTurn ?? headTurn) ? 0 : -1}
+                tabIndex={node.turn === tabStop ? 0 : -1}
                 onFocus={() => { setRovingTurn(node.turn) }}
                 onKeyDown={onKeyDown}
                 onClick={() => { openTurn(node.turn) }}

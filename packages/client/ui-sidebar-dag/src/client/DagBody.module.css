@@ -57,11 +57,13 @@
 
 .item { position: relative; }
 
-/* The spine runs through each mark's centre and stops at the last node. */
+/* The spine runs through each mark's centre — the centre of the mark's own grid
+   column, which `justify-self: center` puts the mark on — and stops at the last
+   node. */
 .item::before {
   content: '';
   position: absolute;
-  left: calc(var(--dag-mark-size) / 2);
+  left: calc((var(--dag-gutter) - var(--dag-spine-width)) / 2);
   top: 0;
   bottom: 0;
   width: var(--dag-spine-width);

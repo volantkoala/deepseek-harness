@@ -196,6 +196,39 @@ describe('DagBody chain', () => {
     expect(wayBack(view)).toBeNull()
   })
 
+  it('follows the current node as the reading position advances', () => {
+    const scrollIntoView = installScrollIntoView()
+    const mounted = mountBody({ reading: { activeTurn: 1, busyTurn: null } })
+    const first = rowOf(mounted.view, 1)
+    const next = rowOf(mounted.view, 2)
+    expect(scrollIntoView.mock.contexts[0]).toBe(first)
+
+    act(() => { reading(mounted).set({ activeTurn: 2, busyTurn: null }) })
+    // The map moved to the row that just became current, and marked it as such.
+    expect(scrollIntoView.mock.contexts[1]).toBe(next)
+    expect(node(mounted.view, 2).getAttribute('aria-current')).toBe('true')
+    expect(node(mounted.view, 1).hasAttribute('aria-current')).toBe(false)
+    expect(mounted.view.getByText('second answer')).toBeTruthy()
+  })
+
+  it('keeps a tab stop when the outline drops the row the reader was on', () => {
+    const { view, projection } = mountBody({ reading: { activeTurn: 2, busyTurn: null } })
+    focusNode(view, 3)
+    expect(node(view, 3).tabIndex).toBe(0)
+
+    act(() => {
+      projection.set({
+        turnOutline: [
+          outlineEntry(1, 'first prompt', 'first answer'),
+          outlineEntry(2, 'second prompt', 'second answer'),
+        ],
+      })
+    })
+    expect(nodes(view)).toEqual([1, 2])
+    // The focus went with its row; the tab stop falls back to the current Turn.
+    expect(nodes(view).filter(turn => node(view, turn).tabIndex === 0)).toEqual([2])
+  })
+
   it('leaves the way back harmless when the current Turn has left the chain', () => {
     const scrollIntoView = installScrollIntoView()
     const mounted = mountBody({ reading: { activeTurn: 2, busyTurn: null } })
