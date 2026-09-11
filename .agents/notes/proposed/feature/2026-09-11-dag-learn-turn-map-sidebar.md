@@ -21,9 +21,9 @@ Add DAG-learn, a read-only turn map, as a right-Sidebar tab type in a new client
 
 Three seams carry it, each owned by the package that already owns the corresponding state.
 
-1. **Navigation — `ui-conversation`.** `IConversation`, the scope-addressed outward face other plugins may reach, gains `openView(view, focus)`. For a caller inside the Conversation shell this is exactly what the store's existing `openView` action does today: activate the addressed view's target source, record the view preference, and publish the one-shot `ConversationViewRequest` (`{ view, focus }`) that the addressed view consumes and acknowledges. `Trajectory`'s existing focus path is unchanged.
-2. **Focus encoding — `ui-chat`.** The `focus` value stays a target-owned opaque string, as the contract already defines it. `ui-chat` exports `chatTurnFocus(turn)` so no producer spells the encoding itself.
-3. **Current position — `ui-chat`.** `ui-chat` declares a new `SessionStandardProps` member publishing the Chat view's own `{ activeTurn, busyTurn }` per Session, the same way it already publishes the Chat target snapshot to every session-scoped occupant. Absent hook or unmounted Chat view means no current mark.
+1. **Navigation — `ui-conversation`.** `IConversation`, the scope-addressed outward face other plugins may reach, gains `openView(request)`, taking the one-shot `ConversationViewRequest` that the addressed view consumes and acknowledges. Inside the Conversation shell this is what the store's existing `openView` action does today: activate the addressed view's target source, record the view preference, publish the request. The request becomes a discriminated union — an opaque `focus` identity for a view's own addressing, or a `turn` number for a turn-based view. Trajectory keeps its behaviour and reads the `focus` arm.
+2. **Turn addressing — typed, not encoded.** A turn is addressed by number. A client bundle may not import values from another plugin — the bundle purity gate rejects cross-plugin value imports and routes collaboration through cordis services — so a formatter exported by `ui-chat` would not reach the map. Rather than spell one format in two packages, the request carries the turn as a typed field, and no format exists to drift.
+3. **Current position — `ui-chat`.** `ui-chat` provides a client service whose `location(sessionId)` reports the Chat view's own `{ activeTurn, busyTurn }` as a per-Session source. A client bundle may not import values from another plugin, so a cordis service is the only channel a cross-plugin value can travel; the map reads it optionally with `ctx.get`, exactly as `chatFileMentions` is read today. The source reports an empty location while no Chat view is mounted, and an absent service leaves the map drawing no current mark.
 
 ### The step that does not exist yet: an outside producer
 
@@ -43,13 +43,13 @@ Consequences that shape the map:
 - No second source is needed. The map does not read the Chat target snapshot, so it stays independent of the Chat view and keeps rendering in deployments and view configurations where Chat is not mounted.
 - The projection's previews are already bounded at the wire, so the map re-bounds nothing; overflow is a visual clip, not a new bound.
 
-Projection values cross the wire, so a consumer narrows them structurally. That narrowing gets one home rather than one copy per consumer: `@deepseek-ai/dsh-session-turn-outline/client` exports `turnOutlineEntries(value)`, and `ui-chat`'s `turn-rail-items.ts` drops its private copies in favour of it. The package that declares the wire projection owns the conversion from wire value to typed entries.
+Projection values cross the wire, and the projection type table already carries them across it: `turnOutline` is declared in `SessionProjectionMap`, so `useProjection('turnOutline')` hands the map typed entries and the map narrows nothing itself.
 
 ### Selecting a node
 
 The tab's session scope supplies the Session and the node supplies its `turn`:
 
-1. the map calls `conversation.openView('chat', chatTurnFocus(turn))`;
+1. the map calls `conversation.openView({ kind: 'turn', view: 'chat', turn })`;
 2. the shell applies the request and the Chat view consumes it: a loaded turn resolves through the same path the rail's loaded mark uses, and a turn outside the loaded window arms the existing pending-jump state with the outline's `seq` and pages history through `loadThrough` before landing;
 3. the request is acknowledged.
 
@@ -77,6 +77,8 @@ An empty Session shows one line; a deployment without the projection shows a dif
 
 **Why not have `ui-chat` own a location service (`chatLocation.reveal` / `activeTurn`) that the map depends on?** It centralises the change in one package, but the Chat view is not always mounted — a reader can be looking at the Trajectory ledger — so `reveal` would have nowhere to land, and returning the conversation to Chat needs the view selection that lives in the Conversation shell. The design would end up reaching into `ui-conversation` anyway, with an extra dependency from a Sidebar plugin to the Chat plugin on top.
 
+**Why not export the focus encoding from `ui-chat` for producers to call?** A client bundle may not import values from another plugin: the bundle purity gate rejects cross-plugin value imports and routes collaboration through cordis services. An exported formatter would therefore not reach the map, leaving two choices — spell one format in two packages, or make the turn a typed field on the request. The typed field deletes the format instead of duplicating it.
+
 **Why not register the map's tab inside `ui-chat` itself and share the jump closure directly?** That is the smallest diff: no new seam at all. It also puts a Sidebar surface inside the Chat target package, against the package-per-role layout, and it makes removing or changing the experiment a change to a core package.
 
 **Why not write the request straight into the Conversation store?** The store instance is resolved by the Slot renderer for a specific registration and scope and has no public accessor by design; exposing one would hand every plugin a mutable handle on shell state. The applier keeps the write set where it belongs.
@@ -103,7 +105,7 @@ An empty Session shows one line; a deployment without the projection shows a dif
 
 - **The applier invariant is assumed, not yet proven.** The design depends on a Session's right-Sidebar tab coexisting only with that Session's mounted conversation region; if a floating panel can present another Session's tabs, a jump can fail loud where a reader expects it to work. Implementation verifies the invariant first and adds a test that asserts it.
 - **The change touches hot paths in two core packages.** The service verb and the request consumer sit on the transcript's scrolling and the conversation's view selection. Existing suites cover both, and the plan adds explicit regression coverage for the Trajectory path, but the review burden is in those two packages, not in the new one.
-- **Focus is an opaque string with one producer today.** A second producer can spell it wrong; the exported helper narrows that risk but does not remove it. The consumer's unresolvable-focus path is what keeps a mistake from wedging the request.
+- **The request contract changes shape.** Making the request a discriminated union moves an existing consumer's read (Trajectory) and the store action that publishes requests, while their behaviour stays the same. The plan carries regression coverage for the Trajectory path and for the existing in-shell producer, so the cost is contained to the two call sites and their tests.
 - **No virtualisation until measured.** The row count is bounded by the Session's turn count, which is not bounded by the product. `content-visibility` mitigates rendering cost; the threshold that would force virtualisation is not known yet and is recorded as a known limitation rather than guessed at now.
 - **The map shows structure, not health.** Turn errors, retries, and compactions are not part of the projection, so a turn that failed reads like any other turn. Presenting failure state would need another source and is deliberately out of scope.
 
