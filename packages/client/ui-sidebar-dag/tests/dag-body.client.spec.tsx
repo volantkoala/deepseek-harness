@@ -89,7 +89,15 @@ describe('DagBody chain', () => {
     expect(node(view, 2).textContent).toBe('2second prompt')
     expect(view.container.querySelector('[data-dag-session]')?.getAttribute('data-dag-session')).toBe(SESSION)
     expect(view.container.querySelector('[data-dag-state]')?.getAttribute('data-dag-state')).toBe('map')
-    expect(view.getByText(zh.count.replace('{count}', '3'))).toBeTruthy()
+    expect(view.getByText(zh['count.other'].replace('{count}', '3'))).toBeTruthy()
+  })
+
+  it('counts one Turn in the singular and many in the plural', () => {
+    const single = mountBody({ outline: [outlineEntry(1, 'only prompt', 'only answer')], locale: 'en' })
+    expect(single.view.getByText('1 turn')).toBeTruthy()
+    expect(single.view.queryByText('1 turns')).toBeNull()
+    const many = mountBody({ locale: 'en' })
+    expect(many.view.getByText('3 turns')).toBeTruthy()
   })
 
   it('names a Turn whose prompt carries no text by its number', () => {
@@ -239,13 +247,32 @@ describe('DagBody chain', () => {
     const back = wayBack(mounted.view)
     expect(back).not.toBeNull()
 
-    // The Chat view goes away with the chain still on screen: nothing is
-    // current, and the control must not reach for a row it no longer has.
-    act(() => { reading(mounted).set({ activeTurn: null, busyTurn: null }) })
+    // History moves under the map: the chain drops the Turn the Chat view still
+    // reports as current. No row is current, and the control must not reach for
+    // one that is gone.
+    act(() => {
+      mounted.projection.set({ turnOutline: [outlineEntry(1, 'first prompt', 'first answer')] })
+    })
     expect(mounted.view.container.querySelector('[aria-current]')).toBeNull()
     scrollIntoView.mockClear()
     fireEvent.click(back!)
     expect(scrollIntoView).not.toHaveBeenCalled()
+    expect(wayBack(mounted.view)).toBeNull()
+  })
+
+  it('offers the way back while a Turn is current, and not once no Turn is', () => {
+    const mounted = mountBody({ reading: { activeTurn: 2, busyTurn: null } })
+    const chain = chainOf(mounted.view)
+    box(chain, 0, 300)
+    box(rowOf(mounted.view, 2), -200, -170)
+    fireEvent.scroll(chain)
+    // Following is suspended with a Turn current: the way back is offered.
+    expect(wayBack(mounted.view)).not.toBeNull()
+
+    // The Chat view unmounts (the reader selected another Conversation view) and
+    // the location clears: with no current Turn there is nothing to stop
+    // following and nothing to offer.
+    act(() => { reading(mounted).set({ activeTurn: null, busyTurn: null }) })
     expect(wayBack(mounted.view)).toBeNull()
   })
 

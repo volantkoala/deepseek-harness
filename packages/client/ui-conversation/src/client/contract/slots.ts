@@ -247,11 +247,11 @@ export interface InputZone {
 
 /** Conversation View entries obtain their data from registered standard hooks. */
 export interface ConvViewOwnerProps {
-  /** Focus request addressed to the selected View. */
+  /** One-shot View request addressed to the selected View. */
   viewRequest: ConversationViewRequest | null
   /** Select the addressed View and publish one request to it. */
   requestView: (request: ConversationViewRequest) => void
-  /** Acknowledge the current one-shot focus request. */
+  /** Acknowledge the current one-shot View request. */
   completeViewRequest: () => void
 }
 
@@ -272,7 +272,7 @@ export interface ConversationSessionInjected {
   readonly hooks: { readonly conversationViews: ObservableSnapshot<readonly ViewTab[]> }
   /** Bind input draft persistence to the Session-owned store instance. */
   bindDraftMirror: (write: (text: string) => void) => () => void
-  /** Select and activate one View while addressing an opaque focus request to it. */
+  /** Select and activate one View while addressing one View request to it. */
   requestView: (request: ConversationViewRequest) => void
   /**
    * Register this Session's request applier while its shell is mounted.

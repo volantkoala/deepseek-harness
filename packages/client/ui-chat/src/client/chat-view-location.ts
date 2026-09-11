@@ -36,8 +36,8 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** The empty location a Session reports while no Chat view is mounted. */
-const EMPTY_LOCATION: ChatViewLocation = { activeTurn: null, busyTurn: null }
+/** The empty location a Session reports while no Chat view is mounted, and the one the view publishes as it unmounts. */
+export const EMPTY_LOCATION: ChatViewLocation = { activeTurn: null, busyTurn: null }
 
 /** Location registry plus the per-Session stores the Chat view writes. */
 export interface ChatViewLocations extends IChatView {

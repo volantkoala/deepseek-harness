@@ -181,8 +181,9 @@ export class ConversationController extends Service implements IConversation {
   /**
    * @param ctx - owning root context (the plugin apply context; the service
    * registers itself and follows that fiber's lifetime).
-   * @param config - carries the SessionInputResolver and composer-block registry
-   * constructed by the plugin apply (the same instances the slot inject
+   * @param config - carries the SessionInputResolver, the composer-block
+   * registry, the mounted-shell applier registry, and the upload concurrency
+   * limit constructed by the plugin apply (the same instances the slot inject
    * factories close over).
    */
   constructor(ctx: Context, config: {

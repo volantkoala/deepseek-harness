@@ -70,7 +70,7 @@ An empty Session shows one line; a deployment without the projection shows a dif
 - No branching: forks, subagent children, and retries are not nodes. A linear chain is a degenerate directed acyclic graph, and that is the whole graph this version draws.
 - No node editing, labelling, annotation, persistence, search, filtering, minimap, or zoom.
 - No left-Sidebar panel and no entry point on non-browser UI surfaces.
-- No virtualised list. Long-Session cost is absorbed by `content-visibility` on rows, and the measurement that would force virtualisation is unknown — the package README records that gap with its other known limitations.
+- No virtualised list. The chain keeps every node in the DOM and carries `content-visibility: auto`, which contains it and skips its contents while the pane is not shown, and the measurement that would force virtualisation is unknown — the package README records that gap with its other known limitations.
 - No change to the Trajectory focus path, the transcript rail, or any existing turn-navigation behaviour.
 
 ## Alternatives considered
@@ -96,14 +96,14 @@ An empty Session shows one line; a deployment without the projection shows a dif
 - The right Sidebar's default page for a pane with no remembered page is now the guide rather than the file tree: `files` (order 10) and `dag` (order 20) are two guide entries, and the surface opens the guide whenever the entry count is not one. The file tree stays reachable as `openTab('files')`.
 - A Session's reading position crosses packages as client state, and `ui-chat` is its only writer: a Session whose Chat view is unmounted reports `{ activeTurn: null, busyTurn: null }`, so the map marks no position while nothing is showing one, and an assembly with no Chat plugin draws no current mark at all.
 - The projection is optional. A deployment that provides no turn outline draws its own line, distinct from the empty-Session line, and the chain still renders.
-- The chain keeps every node in the DOM and mitigates row cost with `content-visibility: auto`; the Session's turn count bounds the row count and nothing below the product bounds that.
+- The chain keeps every node in the DOM and carries `content-visibility: auto`, which skips its contents while the pane is not shown; the Session's turn count bounds the row count and nothing below the product bounds that.
 
 What the decision gives up:
 
 - **The applier invariant is a convention, not a structural guarantee.** A request reaches a Session's shell through the applier that shell registers, and nothing prevents a Session's right-Sidebar tab from coexisting with another Session's shell in a floating panel, where a jump can fail loud where a reader expects it to work. The composition spec pins the shipped arrangement.
 - **The change touches hot paths in two core packages.** The verb writes the conversation store's view selection, and the Chat view consumes a request on the same state its scrolling drives. Both suites cover their paths.
 - **The request contract is a discriminated union.** Trajectory reads the `focus` arm, and the store action publishes whichever arm arrives, so a consumer that still assumed one string focus no longer compiles.
-- **No virtualisation until measured.** The row count is bounded by the Session's turn count, which is not bounded by the product. `content-visibility` mitigates rendering cost; the measurement that would force virtualisation is not recorded and is not guessed at.
+- **No virtualisation until measured.** The row count is bounded by the Session's turn count, which is not bounded by the product. `content-visibility: auto` abates nothing while the map is visible, where the chain is on screen and renders whole; the measurement that would force virtualisation is not recorded and is not guessed at.
 - **The guide entry moves the right Sidebar's default page.** Two guide entries mean a new pane opens the guide instead of the file tree. Accepted rather than avoided: the guide is the designed chooser once one type is no longer the only one, and the alternative — registering no guide entry — leaves the map undiscoverable from the interface.
 - **The map shows structure, not health.** Turn errors, retries, and compactions are not part of the projection, so a turn that failed reads like any other turn. Presenting failure state would need another source and is deliberately out of scope.
 

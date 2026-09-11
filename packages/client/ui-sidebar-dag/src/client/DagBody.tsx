@@ -127,8 +127,10 @@ export function DagBody({
   return (
     <nav className={css.root} aria-label={t('type.label')} data-dag-state="map" data-dag-session={sessionId}>
       <div className={css.header}>
-        <span className={css.count}>{t('count', { count: nodes.length })}</span>
-        {!following && (
+        <span className={css.count}>
+          {t(nodes.length === 1 ? 'count.one' : 'count.other', { count: nodes.length })}
+        </span>
+        {!following && currentTurn !== null && (
           <button type="button" className={css.back} onClick={backToCurrent}>{t('backToCurrent')}</button>
         )}
       </div>

@@ -20,7 +20,7 @@ import type { TurnOutlineEntry } from '@deepseek-ai/dsh-session-turn-outline/cli
 import { DagBody } from '../src/client/DagBody.tsx'
 import type { DagBodyProps, DagInjected } from '../src/client/DagBody.tsx'
 import { DAG_ID, DAG_KIND } from '../src/client/definition.tsx'
-import { zh } from '../src/client/locales.ts'
+import { en, zh } from '../src/client/locales.ts'
 
 export const SESSION = 's-test' as SessionId
 
@@ -71,11 +71,13 @@ export interface MountOptions {
   readonly withLocation?: boolean
   /** The reading position at mount; the empty location by default. */
   readonly reading?: ChatViewLocation
+  /** Which shipped dictionary the body reads; Chinese by default. */
+  readonly locale?: 'zh' | 'en'
 }
 
 /**
  * Mount the map's body.
- * @param options - the outline, the reading position, and whether one exists.
+ * @param options - the outline, the reading position, whether one exists, and the dictionary.
  * @returns the view and the two sources the spec drives.
  */
 export function mountBody(options: MountOptions = {}): Mounted {
@@ -104,7 +106,7 @@ export function mountBody(options: MountOptions = {}): Mounted {
     useProjection: hookOf(projection),
     location,
     openTurn,
-    t: makeTranslate(zh),
+    t: makeTranslate(options.locale === 'en' ? en : zh),
   }
   const view = render(<DagBody {...shared as unknown as DagBodyProps} />)
   return { view, openTurn, projection, location }

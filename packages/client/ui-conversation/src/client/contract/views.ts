@@ -7,12 +7,10 @@
 export interface ViewTab { id: string; label: string }
 
 /**
- * One-shot focus request addressed to a Conversation View.
- *
- * The `focus` arm carries a View's own opaque identity (Trajectory's inspector
- * identity, for example); the `turn` arm addresses a Turn of the Session by
- * number, which is the vocabulary the turn outline and the transcript rail
- * already share.
+ * One-shot request addressed to a Conversation View, in one of two arms: a
+ * View's own opaque focus identity (Trajectory's inspector identity, for
+ * example), or a Turn of the Session by number, which is the vocabulary the
+ * turn outline and the transcript rail already share.
  */
 export type ConversationViewRequest =
   | {
@@ -36,6 +34,6 @@ export interface ConversationStoreState {
   draft: string
   /** Preferred `conversation.view` entry id; null resolves to Chat when registered. */
   view: string | null
-  /** Focus request consumed and acknowledged by the addressed View. */
+  /** One-shot View request consumed and acknowledged by the addressed View. */
   viewRequest: ConversationViewRequest | null
 }

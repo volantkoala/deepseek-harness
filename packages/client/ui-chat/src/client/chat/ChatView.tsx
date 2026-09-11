@@ -9,6 +9,7 @@ import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { Button, IconChevronDownOutline14, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps, OpenFileOptions } from '../contract/slots.ts'
 import type { ChatSnapshot } from '../contract/snapshot.ts'
+import { EMPTY_LOCATION } from '../chat-view-location.ts'
 import { PendingSteeringBubble, PendingSubmissionBubble } from './MessageItem.tsx'
 import { ChatNodeSeat } from './ChatNodeSeat.tsx'
 import { TurnNavigator } from './TurnNavigator.tsx'
@@ -409,7 +410,7 @@ export function ChatView({
     viewLocation.set({ activeTurn, busyTurn: busyJumpTurn })
   }, [viewLocation, activeTurn, busyJumpTurn])
   useEffect(() => () => {
-    viewLocation.set({ activeTurn: null, busyTurn: null })
+    viewLocation.set(EMPTY_LOCATION)
   }, [viewLocation])
 
   const toBottom = (el: HTMLElement): void => {

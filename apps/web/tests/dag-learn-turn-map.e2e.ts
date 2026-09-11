@@ -117,6 +117,54 @@ async function turnRowOnScreen(page: Page, turn: number): Promise<boolean> {
   })
 }
 
+/** One chain row's laid-out geometry: the mark it draws and the rail it paints. */
+interface RowGeometry {
+  /** Mark centre x, in viewport coordinates. */
+  readonly markCenterX: number
+  /** Mark centre y, in viewport coordinates. */
+  readonly markCenterY: number
+  /** Rail centre x, in viewport coordinates. */
+  readonly railCenterX: number
+  /** Rail's top edge, in viewport coordinates. */
+  readonly railTop: number
+  /** Rail's bottom edge, in viewport coordinates. */
+  readonly railBottom: number
+  /** The row's own laid-out height. */
+  readonly rowHeight: number
+}
+
+/**
+ * Read the mark and rail geometry of every chain row from the running page.
+ * The rail is the row's own `::before`, so only a browser that has laid the
+ * map out can resolve its used box; jsdom lays nothing out.
+ * @param page - the page under test.
+ * @returns one entry per chain row, in document order.
+ */
+async function rowGeometry(page: Page): Promise<readonly RowGeometry[]> {
+  return await page.locator('[data-dag-row]').evaluateAll(rows => rows.map((row) => {
+    const mark = row.querySelector('[aria-hidden="true"]')
+    if (mark === null) throw new Error('a chain row draws no mark')
+    const rail = getComputedStyle(row, '::before')
+    const rowBox = row.getBoundingClientRect()
+    const markBox = mark.getBoundingClientRect()
+    const top = Number.parseFloat(rail.top)
+    const bottom = Number.parseFloat(rail.bottom)
+    const left = Number.parseFloat(rail.left)
+    const width = Number.parseFloat(rail.width)
+    if ([top, bottom, left, width].some(Number.isNaN)) {
+      throw new Error(`the rail's box is not resolved to pixels: ${rail.cssText}`)
+    }
+    return {
+      markCenterX: markBox.left + markBox.width / 2,
+      markCenterY: markBox.top + markBox.height / 2,
+      railCenterX: rowBox.left + left + width / 2,
+      railTop: rowBox.top + top,
+      railBottom: rowBox.bottom - bottom,
+      rowHeight: rowBox.height,
+    }
+  }))
+}
+
 describe.skipIf(MODE === 'record')('web e2e: the DAG-learn turn map', () => {
   let scaffold: WebScaffold
   let browser: Browser
@@ -239,6 +287,42 @@ describe.skipIf(MODE === 'record')('web e2e: the DAG-learn turn map', () => {
       .toContain(firstPrompt.slice(0, PROMPT_PREFIX_LENGTH))
     const snapshot = await captureStableAria(page, '[data-dag-state="map"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(SELECTED_EXPECTED, snapshot, MODE)
+  }, 90_000)
+
+  it('holds the spine on the marks, including the row that grows', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-dag-learn-turn-map-spine'))
+    await openDagPage(page)
+    // Opening the Session lands on the newest Turn, so the row that expands its
+    // response preview is the last one: the rail's capped end sits on a grown
+    // row while the first row's end sits on a one-line row.
+    await expect.poll(async () => await page.locator('[data-dag-node][aria-current="true"]').getAttribute('data-dag-node'), {
+      timeout: 15_000,
+    }).toBe('2')
+    const grownLast = await rowGeometry(page)
+    expect(grownLast).toHaveLength(seedPrompts.length)
+    const lastEnd = grownLast.at(-1)
+    const firstEnd = grownLast[0]
+    if (lastEnd === undefined || firstEnd === undefined) throw new Error('the map drew no chain rows')
+    expect(lastEnd.rowHeight).toBeGreaterThan(firstEnd.rowHeight)
+    for (const row of grownLast) expect(row.railCenterX).toBeCloseTo(row.markCenterX, 3)
+    expect(firstEnd.railTop).toBeCloseTo(firstEnd.markCenterY, 3)
+    expect(lastEnd.railBottom).toBeCloseTo(lastEnd.markCenterY, 3)
+
+    // The same two ends with the growth on the first row instead.
+    const first = (await dagNodes(page))[0]
+    if (first === undefined) throw new Error('the map drew no first node')
+    await first.click()
+    await expect.poll(async () => await page.locator('[data-dag-node][aria-current="true"]').getAttribute('data-dag-node'), {
+      timeout: 15_000,
+    }).toBe('1')
+    const grownFirst = await rowGeometry(page)
+    const grownHead = grownFirst[0]
+    const tail = grownFirst.at(-1)
+    if (grownHead === undefined || tail === undefined) throw new Error('the map drew no chain rows')
+    expect(grownHead.rowHeight).toBeGreaterThan(tail.rowHeight)
+    for (const row of grownFirst) expect(row.railCenterX).toBeCloseTo(row.markCenterX, 3)
+    expect(grownHead.railTop).toBeCloseTo(grownHead.markCenterY, 3)
+    expect(tail.railBottom).toBeCloseTo(tail.markCenterY, 3)
   }, 90_000)
 
   it('keeps the borrowed fixture inventory exact', async () => {

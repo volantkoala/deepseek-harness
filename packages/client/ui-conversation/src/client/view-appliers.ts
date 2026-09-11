@@ -12,7 +12,13 @@ import type { ConversationViewRequest } from './contract/views.ts'
 /** Apply one request inside a mounted Conversation shell. */
 export type ViewRequestApplier = (request: ConversationViewRequest) => void
 
-/** Session-keyed handoff from the conversation service to the mounted shell. */
+/**
+ * Session-keyed handoff from the conversation service to the mounted shell.
+ * One applier per Session, last registration winning: a newer shell replaces an
+ * older one, and the registration that currently owns the entry clears it on
+ * disposal without restoring the older shell, so an older shell that is still
+ * mounted has no applier and requests to that Session fail loud.
+ */
 export class ViewRequestAppliers {
   private readonly bySession = new Map<SessionId, ViewRequestApplier>()
 

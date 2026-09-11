@@ -292,13 +292,18 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       hooks: { conversationViews },
       bindDraftMirror: write => inputHub.shell(sessionId).bindMirror(write),
       requestView: (request) => {
+        // TODO(trajectory-view-optional): ui-chat's inspect-call affordance
+        // addresses `trajectory` whatever the roster holds, so a deployment
+        // overlay that disables that row reaches this throw where a no-op is
+        // meant. The roster-aware guard belongs on the shell side, which owns
+        // the roster; ChatView has none to consult.
         if (!viewTabs().some(tab => tab.id === request.view)) {
           throw new Error(`ui-conversation: no Conversation View "${request.view}" is registered`)
         }
         activateView(sessionId, request.view)
         actions.requestView(request)
       },
-      bindViewApplier: apply => viewAppliers.register(sessionId, apply),
+      bindViewApplier: applier => viewAppliers.register(sessionId, applier),
     }),
   }, ConversationSession)
 

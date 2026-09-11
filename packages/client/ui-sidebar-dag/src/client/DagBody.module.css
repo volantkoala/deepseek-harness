@@ -46,6 +46,13 @@
   --dag-mark-size: 9px;
   --dag-spine-width: 0.5px;
   --dag-gutter: 18px;
+  --dag-row-padding: 6px;
+  --dag-mark-offset: 5px;
+  /* The mark's centre, measured from the row's top edge: the row's padding, the
+     mark's own top margin, and half the mark. Both spine ends are bound to it
+     rather than to the row height, because the current row grows with its
+     response preview and a settled Session ends on one. */
+  --dag-mark-center: calc(var(--dag-row-padding) + var(--dag-mark-offset) + var(--dag-mark-size) / 2);
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -58,8 +65,9 @@
 .item { position: relative; }
 
 /* The spine runs through each mark's centre — the centre of the mark's own grid
-   column, which `justify-self: center` puts the mark on — and stops at the last
-   node. */
+   column, which `justify-self: center` puts the mark on — and both ends stop at
+   the mark's centre of the first and last row, so the rail ends on its own marks
+   whatever height those rows have. */
 .item::before {
   content: '';
   position: absolute;
@@ -70,8 +78,8 @@
   background: var(--dsw-alias-border-l3);
 }
 
-.item:first-child::before { top: 50%; }
-.item:last-child::before { bottom: 50%; }
+.item:first-child::before { top: var(--dag-mark-center); }
+.item:last-child::before { bottom: calc(100% - var(--dag-mark-center)); }
 .item:only-child::before { display: none; }
 
 .node {
@@ -83,7 +91,7 @@
   width: 100%;
   border: 0;
   background: none;
-  padding: 6px 8px 6px 0;
+  padding: var(--dag-row-padding) 8px var(--dag-row-padding) 0;
   text-align: left;
   cursor: pointer;
   border-radius: 8px;
@@ -103,7 +111,10 @@
   grid-column: 1;
   justify-self: center;
   align-self: start;
-  margin-top: 5px;
+  margin-top: var(--dag-mark-offset);
+  /* The border box is the token, so however the hairline's half pixel resolves
+     the mark's centre stays on `--dag-mark-center`. */
+  box-sizing: border-box;
   width: var(--dag-mark-size);
   height: var(--dag-mark-size);
   border-radius: 50%;

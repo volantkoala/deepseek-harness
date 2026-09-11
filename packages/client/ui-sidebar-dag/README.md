@@ -56,7 +56,7 @@ None; the map assembles no model request.
 <a id="known-limitations-and-deferred-work"></a>
 - **Opened by kind only.** The type declares no resource patterns, so no address ever claims a turn map and nothing can deep-link one; a reader reaches it from the guide page.
 - **A host without the turn outline reads differently from an empty Session.** The dictionary carries `empty` and `noProjection` as separate lines on purpose: a Session with no started Turns and a deployment that provides no turn outline must not read alike.
-- **No virtualisation.** Every node stays in the DOM, with `content-visibility: auto` on the chain absorbing row cost. The Turn count is bounded by the Session, not by the product, and the measurement that would force a virtualised list — the row count at which scroll or commit cost stops being acceptable — is not recorded.
+- **No virtualisation.** Every node stays in the DOM. The chain carries `content-visibility: auto`, which contains the chain and skips its contents while the pane is not shown; on screen the chain renders whole, so row cost while the reader is looking at the map is not abated. The Turn count is bounded by the Session, not by the product, and the measurement that would force a virtualised list — the row count at which scroll or commit cost stops being acceptable — is not recorded.
 - **A failed Turn reads like any other.** Turn errors, retries, and compactions are absent from the turn outline, so a Turn that failed carries the same mark, number, and prompt preview as one that answered, with an empty response preview.
 
 <a id="dev-note"></a>

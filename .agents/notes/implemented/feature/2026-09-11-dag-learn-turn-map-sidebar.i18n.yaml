@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-11-dag-learn-turn-map-sidebar.md
-2026-09-11-dag-learn-turn-map-sidebar.md: d79f6ab40001495abc108382cdfe92e1b2806f69
-2026-09-11-dag-learn-turn-map-sidebar.zh.md: d67941b8ebbe8b1cb116958df2457b8a266c354a
+2026-09-11-dag-learn-turn-map-sidebar.md: 944e96d9996e044d09ebf6ceb86c72a5139089d6
+2026-09-11-dag-learn-turn-map-sidebar.zh.md: e13dd3f7027567811ff2e3354864fdd8f71832d9
