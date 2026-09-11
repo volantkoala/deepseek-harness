@@ -230,6 +230,11 @@
     - id: ui-sidebar-documentpreview
       name: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview'
 
+    # DAG-learn: every started Turn of the Session as a chain node, selecting
+    # one moves the conversation to that Turn.
+    - id: ui-sidebar-dag
+      name: '@deepseek-ai/dsh-client-ui-sidebar-dag'
+
     # The right Sidebar's workspace file tree tab type.
     - id: ui-sidebar-files
       name: '@deepseek-ai/dsh-client-ui-sidebar-files'
