@@ -6,8 +6,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { useEffect } from 'react'
 import type {
   AssistantMessageNode, ChatNode, ChatNodeOwnerProps, ChatNodeViewProps, ChatSnapshot,
-  ChatViewSlotProps, CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
-  LegacyConversationSlice, ModelRetryNode, RunningToolCall, SteeringMessageNode,
+  ChatViewLocation, ChatViewSlotProps, CommandNode, CompactionSummaryNode, ContextMessageNode,
+  ConversationNode, LegacyConversationSlice, ModelRetryNode, RunningToolCall, SteeringMessageNode,
   ToolCallBlock, ToolResultNode, TurnErrorNode, TurnMaxTokensNode, UseChatNodeTurnData,
   TranscriptViewMode, UserMessageNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -267,6 +267,9 @@ function makeHarness(
   const forkAt = vi.fn()
   // Rows and the harness must observe the same chat-store instance.
   const chat = createChatStore().create()
+  // The reading-position source the view publishes through, as apply.ts mints
+  // it per Session; the empty location is what a Session without a view reports.
+  const location = createSnapshotStore<ChatViewLocation>({ activeTurn: null, busyTurn: null })
   const transcriptView = createSnapshotStore<TranscriptViewMode>('compact')
   const t = makeTranslate(zh, commonZh)
   const toolOwners: Array<{
@@ -402,6 +405,7 @@ function makeHarness(
     openSkill,
     loadOlder,
     loadThrough,
+    viewLocation: location,
     loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
     chatScroll,
     forkAt,
@@ -462,7 +466,7 @@ function makeHarness(
     openFile, openSkill, loadOlder, loadThrough, requestView, completeViewRequest,
     mount, commit, setViewRequest, activeTurnText,
     setOutline: (value: unknown) => { outlineValue = value },
-    chatScroll, forkAt, toolOwners,
+    chatScroll, forkAt, toolOwners, location,
     setTranscriptView: (mode: TranscriptViewMode) => { transcriptView.set(mode) },
     setNodeRenderer: (renderer: React.ComponentProps<typeof ChatNodeSeat>['renderSlot']) => {
       nodeSlotOverride = renderer
@@ -3042,5 +3046,29 @@ describe('ChatView turn requests', () => {
     await act(async () => {})
     expect(h.activeTurnText()).toBe('2')
     expect(h.completeViewRequest).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('ChatView reading position publication', () => {
+  beforeEach(holdAnimationFrames)
+
+  it('publishes its reading position and clears it on unmount', async () => {
+    const h = makeHarness(loadedTurns([1, 2, 3]))
+    const view = h.mount()
+    await act(async () => {})
+    expect(h.location.getSnapshot().activeTurn).toBe(3)
+    view.unmount()
+    expect(h.location.getSnapshot()).toEqual({ activeTurn: null, busyTurn: null })
+  })
+
+  it('publishes the Turn a jump is landing on until the jump settles', async () => {
+    const h = makeHarness({ nodes: [userInTurn(8, 'third prompt', 3), assistant(9, 'third response', 3)] }, { hasMore: true })
+    h.setOutline([{ turn: 1, seq: 0, prompt: 'first prompt', response: 'first response' }])
+    const view = h.mount()
+    // The click alone owns the busy mark: the target Turn's rows are not loaded yet.
+    fireEvent.click(view.getByRole('button', { name: '加载并跳转到第 1 轮' }))
+    expect(h.location.getSnapshot().busyTurn).toBe(1)
+    await act(async () => {})
+    expect(h.location.getSnapshot().busyTurn).toBeNull()
   })
 })

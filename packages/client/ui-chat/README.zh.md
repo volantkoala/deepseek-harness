@@ -20,6 +20,7 @@ kind: "package-reference"
 - [已完成轮次的页脚](#completed-turn-footer)
 - [轮次过程折叠](#turn-process-folding)
 - [滚动归属](#scroll-ownership)
+- [阅读位置](#reading-position)
 - [模型体验](#model-experience)
 - [已知限制与暂缓事项](#known-limitations-and-deferred-work)
 - [开发备注](#dev-note)
@@ -61,6 +62,13 @@ kind: "package-reference"
 ## 滚动归属
 
 Chat 会在历史前插与 renderer 重新挂载时恢复语义锚点。没有读者移动的贴底滚动事件会立即更新跟随归属，避免后续布局变化使其底部位置失效。读者移动即使位于跟随阈值内，也保持待处理直到采样周期或 `scrollend`，防止布局增长抵消小幅滚动操作。读者跟随底部时，`ResizeObserver` 追随新的底部，并且无需读取行几何就选中最后一个已加载轮次；读者离开底部后，高度变化会保持顶部位置，再由阅读线几何选择活跃轮次。轮次导航预览位于 Markdown 代码块粘性头栏上方，而导航外框始终处于 composer 上方的 transcript 区域内。
+
+-----
+
+<a id="reading-position"></a>
+## 阅读位置
+
+transcript 之外的 Session 界面通过 `ctx.chatView.location(sessionId)` 读取已挂载 Chat 视图读到何处：该来源按 Session 保持稳定，报告阅读线所在的轮次，以及跳转正在落位的目标轮次。这些值属于视图状态——它们跟随读者的滚动位置与跳转生命周期，绝不跟随事件日志——视图是它们唯一的写入方。Chat 视图未挂载的 Session 会把两者都报告为 `null`，因此消费方不会高亮任何没有显示内容的位置。该服务是可选的：未挂载 Chat 插件时 `ctx.get('chatView')` 为 `undefined`。
 
 -----
 

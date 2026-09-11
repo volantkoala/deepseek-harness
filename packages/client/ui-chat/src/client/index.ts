@@ -28,6 +28,7 @@ export type {
   TurnProcessChatData, TurnTailChatData,
 } from './contract/chat-nodes.ts'
 export type { ChatStoreState, ToolCallId, TurnProcessViewEntry } from './contract/store.ts'
+export type { ChatViewLocation, IChatView } from './chat-view-location.ts'
 export type { TranscriptViewRowInjected, TranscriptViewRowProps } from './settings/TranscriptViewRow.tsx'
 export type { TranscriptViewMode } from '../chat-settings.ts'
 export type {

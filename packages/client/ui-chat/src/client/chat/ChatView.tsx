@@ -217,7 +217,7 @@ const ChatNodeList = memo(function ChatNodeList({ order, ...seatProps }: ChatNod
 export function ChatView({
   useSession, useChat, useChatNode, useChatNodeProcess, useSessions, useStore, actions, renderSlot,
   sessionId, openFile, openSkill, loadOlder, loadThrough, loadImage, requestView, viewRequest, completeViewRequest,
-  chatScroll, forkAt, fileMentions,
+  chatScroll, forkAt, fileMentions, viewLocation,
   useTranscriptView, useProjection, t,
 }: ChatViewSlotProps) {
   const order = useChat(s => s.order)
@@ -401,6 +401,16 @@ export function ChatView({
   useLayoutEffect(() => {
     scheduleActiveTurn()
   }, [scheduleActiveTurn])
+
+  // The map outside the transcript reads this; the values are view state, so
+  // the view is the only writer. Unmounting clears them: a Session map must
+  // not keep highlighting a position nothing is showing.
+  useEffect(() => {
+    viewLocation.set({ activeTurn, busyTurn: busyJumpTurn })
+  }, [viewLocation, activeTurn, busyJumpTurn])
+  useEffect(() => () => {
+    viewLocation.set({ activeTurn: null, busyTurn: null })
+  }, [viewLocation])
 
   const toBottom = (el: HTMLElement): void => {
     anchorRef.current = null

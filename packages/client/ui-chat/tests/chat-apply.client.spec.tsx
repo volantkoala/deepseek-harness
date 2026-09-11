@@ -20,7 +20,8 @@ import {
   apply as applyChat, EMPTY_CHAT_SNAPSHOT, inject as injectChat,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {
-  ChatNodeTurnDataInjected, ChatSnapshot, TranscriptViewRowInjected, UseChatNodeTurnData,
+  ChatNodeTurnDataInjected, ChatSnapshot, ChatViewInjected, TranscriptViewRowInjected,
+  UseChatNodeTurnData,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../src/chat-settings.ts'
 
@@ -120,6 +121,25 @@ describe('Chat apply wiring', () => {
     await b.runtime.dispose()
   })
 
+  it('provides the reading position of the view it hands the store to', async () => {
+    const b = await bench()
+    await b.runtime.sessions.add({ id: SID }, { current: false })
+    const entry = b.runtime.slots.entries('conversation.view')[0]!
+    const injectView = entry.inject as unknown as (sessionId: SessionId) => ChatViewInjected
+    const face = injectView(SID)
+
+    // The service a Session map reads and the store the view writes are the
+    // same channel: anything else would publish to a source nobody reads.
+    // `get` is the optional-read path a consumer outside this plugin uses.
+    const chatView = b.runtime.ctx.get('chatView')
+    if (chatView === undefined) throw new Error('ui-chat did not provide ctx.chatView')
+    const source = chatView.location(SID)
+    expect(source).toBe(face.viewLocation)
+    face.viewLocation.set({ activeTurn: 4, busyTurn: null })
+    expect(source.getSnapshot()).toEqual({ activeTurn: 4, busyTurn: null })
+    await b.runtime.dispose()
+  })
+
   it('removes only Chat contributions when Chat unloads', async () => {
     const b = await bench()
     await b.chat.dispose()
@@ -128,6 +148,8 @@ describe('Chat apply wiring', () => {
     expect(b.runtime.slots.entries('main').map(row => row.options.key)).toEqual(['conversation'])
     expect(b.runtime.slots.entries('main.conversation')).toHaveLength(1)
     expect(b.runtime.ctx.get('uiConversation')).toBeDefined()
+    // The reading-position service goes with the fiber that provided it.
+    expect(b.runtime.ctx.get('chatView')).toBeUndefined()
     await b.runtime.dispose()
   })
 
