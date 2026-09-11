@@ -14,12 +14,17 @@
  */
 import { describe, expect, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
+import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 import { ok, openStream, type RemoteMock } from '@deepseek-ai/dsh-remote-mock'
+import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { createClientTest, type TestClient, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
 import type { SessionFollowFrame, SessionWireEvent } from '@deepseek-ai/dsh-api-session-controller/types'
-import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
+import {
+  SESSION_FORMAT_VERSION, SessionSeq, type SessionEventMap, type SessionEventType, type SessionId,
+  type SurfaceEventType,
+} from '@deepseek-ai/dsh-session/types'
 import type { TurnOutlineEntry } from '@deepseek-ai/dsh-session-turn-outline/client'
 import { DAG_KIND } from '../src/client/definition.tsx'
 import { en } from '../src/client/locales.ts'
@@ -30,9 +35,9 @@ const COLD_BOOT_TIMEOUT_MS = 60_000
 const SID = 'dag-map-1' as SessionId
 /** How long an assembled-client assertion waits for its React and stream work. */
 const SETTLE_TIMEOUT_MS = 10_000
-/** Conversation view tabs the roster registers, by their product labels. */
-const CHAT_VIEW = 'Chat'
-const TRAJECTORY_VIEW = 'Trajectory'
+/** The Conversation views this spec switches between, by the ids their packages register. */
+const CHAT_VIEW = 'chat'
+const TRAJECTORY_VIEW = 'trajectory'
 /** The Session's recorded Turns, as the log carries them. */
 const TURNS = [
   { prompt: 'first prompt', response: 'first answer' },
@@ -43,6 +48,19 @@ const TURNS = [
 const EVENTS_PER_TURN = 6
 
 /**
+ * One logged event before its sequence is stamped: the payload is the event
+ * map's own, and a message-producing event carries its append operation, so a
+ * field the host always records cannot be left out unnoticed. The mapped union
+ * keeps each type paired with its own payload.
+ */
+type LoggedEvent = {
+  [K in SessionEventType]: {
+    readonly type: K
+    readonly data: SessionEventMap[K]
+  } & (K extends SurfaceEventType ? { readonly surfaceOp: 'append' } : { readonly surfaceOp?: never })
+}[SessionEventType]
+
+/**
  * One recorded plain Turn: its boundary, prompt, one step, and its response.
  * @param turn - Turn number, ascending from one.
  * @param prompt - the Turn's human prompt text.
@@ -51,19 +69,19 @@ const EVENTS_PER_TURN = 6
  */
 function turnEvents(turn: number, prompt: string, response: string): SessionWireEvent[] {
   const base = (turn - 1) * EVENTS_PER_TURN
-  const at = (offset: number, event: { type: string; data: unknown; surfaceOp?: 'append' }): SessionWireEvent =>
+  // The event map types every payload; the journal widens it to its own JSON
+  // envelope, which is the boundary this fixture crosses.
+  const at = (offset: number, event: LoggedEvent): SessionWireEvent =>
     ({ ...event, seq: base + offset, time: base + offset }) as SessionWireEvent
   return [
     at(0, { type: 'turn/start', data: { turn } }),
     at(1, {
       type: 'user/message',
       surfaceOp: 'append',
-      data: {
-        id: `m-user-${String(turn)}`,
-        role: 'user',
+      data: createUserMessage({
         content: [{ type: 'text', text: prompt }],
         source: { kind: 'user' },
-      },
+      }),
     }),
     at(2, { type: 'step/start', data: { turn, step: 0 } }),
     at(3, {
@@ -83,12 +101,10 @@ function turnEvents(turn: number, prompt: string, response: string): SessionWire
           },
           { type: 'chunk', time: base + 3, chunk: { type: 'finish', reason: { kind: 'stop' } } },
         ],
-        message: {
-          id: `m-assistant-${String(turn)}`,
-          role: 'assistant',
+        message: createAssistantMessage({
           content: [{ type: 'text', text: response }],
-          source: { kind: 'model', provider: 'fixture', model: 'fixture-1' },
-        },
+          source: { provider: 'fixture', model: 'fixture-1' },
+        }),
       },
     }),
     at(4, { type: 'step/end', data: { turn, step: 0 } }),
@@ -102,7 +118,7 @@ const tailSeq = TURNS.length * EVENTS_PER_TURN - 1
 /** What the Host answers a Session's follow with: the whole log and its projection baseline. */
 const SNAPSHOT: SessionFollowFrame = {
   type: 'snapshot',
-  header: { version: 1, id: SID, createdAt: 0, isSeeded: false },
+  header: { version: SESSION_FORMAT_VERSION, id: SID, createdAt: 0, isSeeded: false },
   cursor: tailSeq,
   records: records.map(event => ({ type: 'event', event })),
   hasMore: false,
@@ -188,6 +204,20 @@ function rowsOf(): HTMLElement[] {
 }
 
 /**
+ * The tab label the assembled client resolves for one registered Conversation view.
+ * @param c - the booted client.
+ * @param id - the view id its plugin registers.
+ * @returns the label the view's own dictionary resolves.
+ */
+function viewLabel(c: TestClient, id: string): string {
+  const entry = c.ctx.slots.entries('conversation.view').find(candidate => candidate.options.id === id)
+  if (entry === undefined) throw new Error(`the assembled client registers no Conversation view "${id}"`)
+  const label = resolveSlotLabel(entry.options.label)
+  if (label === undefined) throw new Error(`Conversation view "${id}" resolved no label`)
+  return label
+}
+
+/**
  * Select one Conversation view by its tab, the way the reader switches views.
  * @param label - the view tab's label.
  */
@@ -244,14 +274,15 @@ describe('the DAG-learn map through the assembled client', () => {
   it('moves the transcript to the clicked Turn and marks it current', async ({ mock, start }) => {
     const c = await bench(mock, start)
     const outline = outlineOf(c)
-    const nodes = nodesOf()
-    const before = locationOf(c)
     const target = outline[0]!
-    fireEvent.click(nodes[0]!)
+    // The Session's position starts somewhere other than the click's target, so
+    // the landing below is the click's doing.
+    expect(locationOf(c)).not.toBe(target.turn)
+    fireEvent.click(nodesOf()[0]!)
     // The transcript's own reading position lands on the Turn the reader picked.
     await until(c, () => { expect(locationOf(c)).toBe(target.turn) })
-    expect(locationOf(c)).not.toBe(before)
     // The map follows the transcript: the landed node is the current one.
+    const nodes = nodesOf()
     expect(nodes[0]?.getAttribute('aria-current')).toBe('true')
     expect(nodes.at(-1)?.hasAttribute('aria-current')).toBe(false)
   }, COLD_BOOT_TIMEOUT_MS)
@@ -259,15 +290,14 @@ describe('the DAG-learn map through the assembled client', () => {
   it('returns the conversation to Chat from another view and lands on the clicked Turn', async ({ mock, start }) => {
     const c = await bench(mock, start)
     const outline = outlineOf(c)
-    const nodes = nodesOf()
     const target = outline[1]!
-    selectView(TRAJECTORY_VIEW)
+    selectView(viewLabel(c, TRAJECTORY_VIEW))
     // The Chat view is gone: nothing shows a position for the Session.
     await until(c, () => { expect(locationOf(c)).toBeNull() })
-    fireEvent.click(nodes[1]!)
+    fireEvent.click(nodesOf()[1]!)
     // The request selected Chat and the mounted view landed on the Turn.
     await until(c, () => { expect(locationOf(c)).toBe(target.turn) })
-    expect(screen.getByRole('tab', { name: CHAT_VIEW }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tab', { name: viewLabel(c, CHAT_VIEW) }).getAttribute('aria-selected')).toBe('true')
     expect(rowsOf().length).toBeGreaterThan(0)
     expect(nodesOf()[1]?.getAttribute('aria-current')).toBe('true')
   }, COLD_BOOT_TIMEOUT_MS)
