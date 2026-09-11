@@ -21,7 +21,7 @@ Add DAG-learn, a read-only turn map, as a right-Sidebar tab type in a new client
 
 Three seams carry it, each owned by the package that already owns the corresponding state.
 
-1. **Navigation — `ui-conversation`.** `IConversation`, the scope-addressed outward face other plugins may reach, gains `openView(request)`, taking the one-shot `ConversationViewRequest` that the addressed view consumes and acknowledges. Inside the Conversation shell this is what the store's existing `openView` action does today: activate the addressed view's target source, record the view preference, publish the request. The request becomes a discriminated union — an opaque `focus` identity for a view's own addressing, or a `turn` number for a turn-based view. Trajectory keeps its behaviour and reads the `focus` arm.
+1. **Navigation — `ui-conversation`.** `IConversation`, the scope-addressed outward face other plugins may reach, gains `requestView(request)`, taking the one-shot `ConversationViewRequest` that the addressed view consumes and acknowledges. Inside the Conversation shell this is what the store's one-shot request action does today: activate the addressed view's target source, record the view preference, publish the request. The request becomes a discriminated union — an opaque `focus` identity for a view's own addressing, or a `turn` number for a turn-based view. Trajectory keeps its behaviour and reads the `focus` arm.
 2. **Turn addressing — typed, not encoded.** A turn is addressed by number. A client bundle may not import values from another plugin — the bundle purity gate rejects cross-plugin value imports and routes collaboration through cordis services — so a formatter exported by `ui-chat` would not reach the map. Rather than spell one format in two packages, the request carries the turn as a typed field, and no format exists to drift.
 3. **Current position — `ui-chat`.** `ui-chat` provides a client service whose `location(sessionId)` reports the Chat view's own `{ activeTurn, busyTurn }` as a per-Session source. A client bundle may not import values from another plugin, so a cordis service is the only channel a cross-plugin value can travel; the map reads it optionally with `ctx.get`, exactly as `chatFileMentions` is read today. The source reports an empty location while no Chat view is mounted, and an absent service leaves the map drawing no current mark.
 
@@ -29,7 +29,7 @@ Three seams carry it, each owned by the package that already owns the correspond
 
 The view-request machinery is complete inside the Conversation shell and unreachable outside it. The request lives in the per-session Slot store that holds `view` and `viewRequest`; the renderer resolves that store per registration and scope, and no service method or public accessor reaches it.
 
-The shell is therefore the applier, not a second owner. The mounted Conversation shell registers itself as the Session's request applier on the conversation service; `openView` hands the request to that applier, which writes it through the store actions exactly as an in-shell caller does. The store stays the single live owner of the request; the service holds no request state of its own. A Session with no mounted shell has no applier, and the call fails loud rather than dropping the request: the invariant is that a right-Sidebar tab shares its Session with the mounted conversation region, so a missing applier is an anomaly worth a message, not silence.
+The shell is therefore the applier, not a second owner. The mounted Conversation shell registers itself as the Session's request applier on the conversation service; `requestView` hands the request to that applier, which writes it through the store actions exactly as an in-shell caller does. The store stays the single live owner of the request; the service holds no request state of its own. A Session with no mounted shell has no applier, and the call fails loud rather than dropping the request: the invariant is that a right-Sidebar tab shares its Session with the mounted conversation region, so a missing applier is an anomaly worth a message, not silence.
 
 The producer reaches the verb through the Session scope, the same route `ui-conversation`'s own scope-addressed callers use: `sessions.scope(sessionId)` and the `conversation` service resolved from it.
 
@@ -49,7 +49,7 @@ Projection values cross the wire, and the projection type table already carries 
 
 The tab's session scope supplies the Session and the node supplies its `turn`:
 
-1. the map calls `conversation.openView({ kind: 'turn', view: 'chat', turn })`;
+1. the map calls `conversation.requestView({ kind: 'turn', view: 'chat', turn })`;
 2. the shell applies the request and the Chat view consumes it: a loaded turn resolves through the same path the rail's loaded mark uses, and a turn outside the loaded window arms the existing pending-jump state with the outline's `seq` and pages history through `loadThrough` before landing;
 3. the request is acknowledged.
 
@@ -95,7 +95,7 @@ An empty Session shows one line; a deployment without the projection shows a dif
 - The current node follows the transcript while the reader is at the tail; following suspends when the reader scrolls away; the "back to current" control appears only while the current node is out of view and resumes following.
 - A turn still generating shows as a node with an empty response preview and gains its response preview when the turn settles, without reordering or remounting the chain.
 - An unresolvable turn is acknowledged with no visible change and does not wedge later requests.
-- `openView` fails loud, with a distinguishing message, when the addressed view is not registered or the addressed Session has no mounted conversation shell.
+- `requestView` fails loud, with a distinguishing message, when the addressed view is not registered or the addressed Session has no mounted conversation shell.
 - Rows are reachable and operable by keyboard with a visible focus ring, and reduced-motion mode disables smooth scrolling and the landing pulse.
 - The map's registrations dispose with their plugin fiber (a disposed fiber removes the tab type and its seats).
 - Trajectory's existing focus-request path keeps its current behaviour.
