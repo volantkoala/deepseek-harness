@@ -6,8 +6,13 @@
  * boots the whole browser roster, opens one Session whose host projection
  * carries recorded Turns, shows the dag page in the real right Sidebar, and
  * asserts what the reader gets: a chain drawn from the Session's own turn
- * outline, and a node click that moves the transcript — including the click
- * that returns the conversation from another registered view to Chat.
+ * outline, and a node click the conversation accepts — including the click that
+ * returns it from another registered view to Chat.
+ *
+ * The transcript's reading position is out of reach here: jsdom reports zero
+ * scroll geometry, so ChatView's follower reads the transcript as pinned to the
+ * bottom and re-publishes the newest Turn over a landed one. Which Turn a click
+ * lands on is pinned against real layout by `apps/web/tests/dag-learn-turn-map.e2e.ts`.
  *
  * Only the Host is mocked: the Session list, the reads a selected Session
  * makes, and the follow stream carrying the log and its projection baseline.
@@ -171,15 +176,6 @@ function outlineOf(c: TestClient): readonly TurnOutlineEntry[] {
 }
 
 /**
- * The Chat view's published reading position for the Session.
- * @param c - the booted client.
- * @returns the Turn at the reading line, or null while no Chat view is mounted.
- */
-function locationOf(c: TestClient): number | null {
-  return c.ctx.chatView.location(SID).getSnapshot().activeTurn
-}
-
-/**
  * The map's landmark, found by the name its dictionary gives the type.
  * @returns the map's `nav` element.
  */
@@ -271,34 +267,18 @@ describe('the DAG-learn map through the assembled client', () => {
     }
   }, COLD_BOOT_TIMEOUT_MS)
 
-  it('moves the transcript to the clicked Turn and marks it current', async ({ mock, start }) => {
+  it('returns the conversation to Chat when a node is clicked from another view', async ({ mock, start }) => {
     const c = await bench(mock, start)
-    const outline = outlineOf(c)
-    const target = outline[0]!
-    // The Session's position starts somewhere other than the click's target, so
-    // the landing below is the click's doing.
-    expect(locationOf(c)).not.toBe(target.turn)
-    fireEvent.click(nodesOf()[0]!)
-    // The transcript's own reading position lands on the Turn the reader picked.
-    await until(c, () => { expect(locationOf(c)).toBe(target.turn) })
-    // The map follows the transcript: the landed node is the current one.
-    const nodes = nodesOf()
-    expect(nodes[0]?.getAttribute('aria-current')).toBe('true')
-    expect(nodes.at(-1)?.hasAttribute('aria-current')).toBe(false)
-  }, COLD_BOOT_TIMEOUT_MS)
-
-  it('returns the conversation to Chat from another view and lands on the clicked Turn', async ({ mock, start }) => {
-    const c = await bench(mock, start)
-    const outline = outlineOf(c)
-    const target = outline[1]!
     selectView(viewLabel(c, TRAJECTORY_VIEW))
-    // The Chat view is gone: nothing shows a position for the Session.
-    await until(c, () => { expect(locationOf(c)).toBeNull() })
+    // A node click asks the conversation for Chat at that Turn. Which Turn it
+    // lands on is answered by real layout, not here: jsdom reports zero scroll
+    // geometry, so ChatView's follower re-publishes the newest Turn and the
+    // landed one is only transient. `apps/web/tests/dag-learn-turn-map.e2e.ts`
+    // case 2 pins the landed Turn with its transcript row on screen.
     fireEvent.click(nodesOf()[1]!)
-    // The request selected Chat and the mounted view landed on the Turn.
-    await until(c, () => { expect(locationOf(c)).toBe(target.turn) })
-    expect(screen.getByRole('tab', { name: viewLabel(c, CHAT_VIEW) }).getAttribute('aria-selected')).toBe('true')
-    expect(rowsOf().length).toBeGreaterThan(0)
-    expect(nodesOf()[1]?.getAttribute('aria-current')).toBe('true')
+    await until(c, () => {
+      expect(screen.getByRole('tab', { name: viewLabel(c, CHAT_VIEW) }).getAttribute('aria-selected')).toBe('true')
+    })
+    await until(c, () => { expect(rowsOf().length).toBeGreaterThan(0) })
   }, COLD_BOOT_TIMEOUT_MS)
 })
