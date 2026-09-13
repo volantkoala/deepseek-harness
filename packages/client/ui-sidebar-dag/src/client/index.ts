@@ -17,8 +17,10 @@ import { DagTitle } from './DagTitle.tsx'
 import { DAG_ID, dagDefinition } from './definition.tsx'
 import { dagInject } from './face.ts'
 import { en, zh } from './locales.ts'
+import { createDagTreeStore } from './tree.ts'
 
 export type { SidebarDagKey } from './locales.ts'
+export type { DagTreeState, DagTreeTabState, TreePosition } from './tree.ts'
 
 /** This package's copy namespace. */
 const NS = 'sidebarDag'
@@ -34,8 +36,10 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
   ctx.effect(() => ctx.sidebarRightTabs.register(dagDefinition(t)), 'ui-sidebar-dag: dag type')
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-sidebar-dag: dictionaries')
+
+  const store = createDagTreeStore()
   ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register(
-    { name: 'sidebar.right.pane.tab', key: DAG_ID, locale: NS, inject: dagInject(ctx) },
+    { name: 'sidebar.right.pane.tab', key: DAG_ID, locale: NS, store, inject: dagInject(ctx) },
     DagBody,
   )), 'ui-sidebar-dag: dag tab body')
   ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register(

@@ -69,12 +69,13 @@ describe('ui-sidebar-dag apply', () => {
     expect(dictionaries.get('sidebarDag')).toEqual({ zh, en })
   })
 
-  it('registers the body under the type id, with its injected face and copy namespace', async () => {
+  it('registers the body under the type id, with its injected face, copy namespace, and tree store', async () => {
     const { registered } = await boot()
     const body = registered.find(entry => entry.name === 'sidebar.right.pane.tab')
     expect(body?.key).toBe(DAG_ID)
     expect(body?.locale).toBe('sidebarDag')
-    expect(body?.store).toBeUndefined()
+    // The editable tree's store: a store handle the framework mints per session.
+    expect(typeof body?.store).toBe('object')
     expect(typeof body?.inject).toBe('function')
     const title = registered.find(entry => entry.name === 'sidebar.right.pane.tab.title')
     expect(title?.key).toBe(DAG_ID)

@@ -18,7 +18,7 @@
  * makes, and the follow stream carrying the log and its projection baseline.
  */
 import { describe, expect, vi } from 'vitest'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -188,7 +188,10 @@ function mapOf(): HTMLElement {
  * @returns the node buttons of the map's list.
  */
 function nodesOf(): HTMLElement[] {
-  return within(within(mapOf()).getByRole('list')).getAllByRole('button')
+  // The tree nests one list per level, so the buttons are found by the node
+  // marker rather than by role within one list.
+  return [...mapOf().querySelectorAll<HTMLElement>('[data-dag-node]')]
+    .filter(node => node.tagName === 'BUTTON')
 }
 
 /**

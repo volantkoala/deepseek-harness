@@ -1,5 +1,6 @@
 /**
- * Mount the body over a switchable outline and a switchable reading position.
+ * Mount the body over a switchable outline, a switchable reading position, and
+ * a live editable-tree store.
  *
  * The component reads a handful of its props; the rest of the standard kit is
  * framework-injected and never touched here, so one documented cast keeps the
@@ -21,6 +22,8 @@ import { DagBody } from '../src/client/DagBody.tsx'
 import type { DagBodyProps, DagInjected } from '../src/client/DagBody.tsx'
 import { DAG_ID, DAG_KIND } from '../src/client/definition.tsx'
 import { en, zh } from '../src/client/locales.ts'
+import { createDagTreeStore } from '../src/client/tree.ts'
+import type { DagTreeState } from '../src/client/tree.ts'
 
 export const SESSION = 's-test' as SessionId
 
@@ -41,6 +44,9 @@ interface ProjectionState {
   readonly turnOutline: readonly TurnOutlineEntry[] | undefined
 }
 
+/** A live editable-tree instance, as the store handle mints one. */
+type DagTreeInstance = ReturnType<ReturnType<typeof createDagTreeStore>['create']>
+
 /** Test-local per-key hook over a framework-neutral store, as the renderer binds one. */
 function hookOf<T extends object>(inst: { subscribe: (fn: () => void) => () => void; getSnapshot: () => T }) {
   return function useProjectionKey<K extends keyof T & string>(key: K): T[K] {
@@ -57,6 +63,8 @@ export interface Mounted {
   readonly projection: SnapshotStore<ProjectionState>
   /** The view's reading position; absent when this mount was given none. */
   readonly location: SnapshotStore<ChatViewLocation> | undefined
+  /** The editable tree's live instance: its baked actions and its snapshot. */
+  readonly tree: DagTreeInstance
 }
 
 /** What a mount decides. */
@@ -78,7 +86,7 @@ export interface MountOptions {
 /**
  * Mount the map's body.
  * @param options - the outline, the reading position, whether one exists, and the dictionary.
- * @returns the view and the two sources the spec drives.
+ * @returns the view and the sources the spec drives.
  */
 export function mountBody(options: MountOptions = {}): Mounted {
   const projection = createSnapshotStore<ProjectionState>({
@@ -89,6 +97,13 @@ export function mountBody(options: MountOptions = {}): Mounted {
     : createSnapshotStore<ChatViewLocation>(options.reading ?? { activeTurn: null, busyTurn: null })
   const openTurn = vi.fn<DagInjected['openTurn']>()
   const controller = new AbortController()
+  const treeInstance = createDagTreeStore().create(SESSION)
+  const useStore = (sel: (state: DagTreeState) => unknown) =>
+    useSyncExternalStore(
+      // Wrapped, not handed bare: the store's methods are bound to their instance.
+      (fn: () => void) => treeInstance.subscribe(fn),
+      () => sel(treeInstance.getSnapshot()),
+    )
   const shared = {
     // The pane kit a body is handed: a live tab record carrying the dag type's
     // own identity. Nothing in the body reads the owner's gestures.
@@ -104,12 +119,14 @@ export function mountBody(options: MountOptions = {}): Mounted {
     }),
     sessionId: SESSION,
     useProjection: hookOf(projection),
+    useStore,
+    actions: treeInstance.actions,
     location,
     openTurn,
     t: makeTranslate(options.locale === 'en' ? en : zh),
   }
   const view = render(<DagBody {...shared as unknown as DagBodyProps} />)
-  return { view, openTurn, projection, location }
+  return { view, openTurn, projection, location, tree: treeInstance }
 }
 
 /**

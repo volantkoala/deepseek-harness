@@ -1,8 +1,8 @@
-/* The chain: one spine, one mark per Turn, one expanded row for the current Turn.
+/* The tree: one spine per level, one mark per Turn, one expanded row for the current Turn.
 
    Tokens are the ones the file-tree pane uses, so the two pane types read as
    one: `--dsw-alias-label-*` for ink, `--dsw-alias-border-l3` for the hairline
-   and the spine, `--dsw-alias-interactive-bg-*` for row states. */
+   and the spines, `--dsw-alias-interactive-bg-*` for row states. */
 .root {
   display: flex;
   flex: 1 1 auto;
@@ -26,6 +26,12 @@
   border-bottom: 0.5px solid var(--dsw-alias-border-l3);
 }
 
+.headerTools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .count {
   color: var(--dsw-alias-label-tertiary);
 }
@@ -38,21 +44,18 @@
   color: var(--dsw-alias-link);
   font-weight: 500;
   cursor: pointer;
+  font: inherit;
 }
 
 .back:hover { background: var(--dsw-alias-interactive-bg-hover); }
 
+/* The scrollport: the root level and every folded-open level beneath it. */
 .chain {
   --dag-mark-size: 9px;
   --dag-spine-width: 0.5px;
   --dag-gutter: 18px;
   --dag-row-padding: 6px;
   --dag-mark-offset: 5px;
-  /* The mark's centre, measured from the row's top edge: the row's padding, the
-     mark's own top margin, and half the mark. Both spine ends are bound to it
-     rather than to the row height, because the current row grows with its
-     response preview and a settled Session ends on one. */
-  --dag-mark-center: calc(var(--dag-row-padding) + var(--dag-mark-offset) + var(--dag-mark-size) / 2);
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -62,25 +65,70 @@
   content-visibility: auto;
 }
 
-.item { position: relative; }
+/* One level of the tree: the child rows under one parent, indented one gutter
+   with the level's spine on its left edge. */
+.level {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 var(--dag-gutter);
+  list-style: none;
+}
 
-/* The spine runs through each mark's centre — the centre of the mark's own grid
-   column, which `justify-self: center` puts the mark on — and both ends stop at
-   the mark's centre of the first and last row, so the rail ends on its own marks
-   whatever height those rows have. */
-.item::before {
+/* The spine runs from just under the parent row down the level's last child,
+   binding the whole level to its parent's mark column. */
+.level::before {
   content: '';
   position: absolute;
   left: calc((var(--dag-gutter) - var(--dag-spine-width)) / 2);
-  top: 0;
+  top: -9px;
   bottom: 0;
   width: var(--dag-spine-width);
   background: var(--dsw-alias-border-l3);
 }
 
-.item:first-child::before { top: var(--dag-mark-center); }
-.item:last-child::before { bottom: calc(100% - var(--dag-mark-center)); }
-.item:only-child::before { display: none; }
+.item { position: relative; }
+
+/* One row: the fold control, the node, and the hover operations. */
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.fold {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: none;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.fold:hover { background: var(--dsw-alias-interactive-bg-hover); }
+
+.foldGlyph {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  transform: rotate(90deg);
+  transition: transform 0.12s ease;
+}
+
+.fold.folded .foldGlyph { transform: rotate(0deg); }
+
+.foldGutter {
+  flex: 0 0 auto;
+  width: 18px;
+}
 
 .node {
   position: relative;
@@ -88,7 +136,8 @@
   grid-template-columns: var(--dag-gutter) auto 1fr;
   align-items: baseline;
   gap: 6px;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   border: 0;
   background: none;
   padding: var(--dag-row-padding) 8px var(--dag-row-padding) 0;
@@ -107,21 +156,26 @@
 }
 .node.current { background: var(--dsw-alias-interactive-bg-active); }
 
+/* While a node is being hung, every row it may hang under is offered. */
+.node.attaching {
+  box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary);
+}
+.node.cannotAttach {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .mark {
   grid-column: 1;
   justify-self: center;
   align-self: start;
   margin-top: var(--dag-mark-offset);
-  /* The border box is the token, so however the hairline's half pixel resolves
-     the mark's centre stays on `--dag-mark-center`. */
   box-sizing: border-box;
   width: var(--dag-mark-size);
   height: var(--dag-mark-size);
   border-radius: 50%;
   corner-shape: round;
   background: var(--dsw-alias-bg-base);
-  /* The house hairline, not the drawn graphic's weight: a neutral stroke wider
-     than 0.5px is rejected package-wide by ui-theme's border contract. */
   border: 0.5px solid var(--dsw-alias-border-l3);
 }
 
@@ -157,6 +211,79 @@
   overflow: hidden;
 }
 
+/* The rename field: the node's grid columns without the mark, so the Turn
+   number and the prompt stay on the same baseline as the rows around it. */
+.edit {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 2px 0;
+  padding: 4px 8px;
+  border: 1px solid var(--dsw-alias-state-business-primary);
+  border-radius: 8px;
+  corner-shape: round;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+}
+
+.edit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary);
+}
+
+/* The hover operations: hidden until the row is under the pointer or the
+   focus, so the tree stays scannable. */
+.ops {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 1px;
+  padding: 0 2px;
+  opacity: 0;
+}
+
+.row:hover .ops,
+.row:focus-within .ops { opacity: 1; }
+
+.op {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: none;
+  padding: 0;
+  border-radius: 5px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.op:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+
+.opGlyph {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.opGlyph[data-glyph='edit']::after { content: '✎'; }
+.opGlyph[data-glyph='attach']::after { content: '＋'; }
+.opGlyph[data-glyph='promote']::after { content: '⤴'; }
+.opGlyph[data-glyph='up']::after { content: '↑'; }
+.opGlyph[data-glyph='down']::after { content: '↓'; }
+
+/* The banner while a node waits to be hung. */
+.attachBar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l3);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
 .note {
   padding: 12px 4px;
   color: var(--dsw-alias-label-tertiary);
@@ -171,4 +298,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .node.busy .mark { animation: none; }
+  .foldGlyph { transition: none; }
 }
